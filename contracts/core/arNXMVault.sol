@@ -121,7 +121,7 @@ contract arNXMVault is Ownable {
     returns (uint256 arAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-        uint256 balance = wNXM.balanceOf( address(this) );
+        uint256 balance = wNXM.balanceOf( address(this) ).sub(lastReward);
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         uint256 reward = _currentReward();
         uint256 totalW = balance.add(stakeDeposit).add(reward);
@@ -141,7 +141,7 @@ contract arNXMVault is Ownable {
     returns (uint256 wAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-        uint256 balance = wNXM.balanceOf( address(this) );
+        uint256 balance = wNXM.balanceOf( address(this) ).sub(lastReward);
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         uint256 reward = _currentReward();
         uint256 totalW = balance.add(stakeDeposit).add(reward);
