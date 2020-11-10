@@ -143,13 +143,9 @@ contract arNXMVault is Ownable {
     returns (uint256 arAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-<<<<<<< HEAD:contracts/core/arNXM.sol
         
         // Get all balances of wNXM on this contract, being staked, then reward allowed to be distributed.
         uint256 balance = wNXM.balanceOf( address(this) );
-=======
-        uint256 balance = wNXM.balanceOf( address(this) ).sub(lastReward);
->>>>>>> 9249805525d598e404efd854c638046316968875:contracts/core/arNXMVault.sol
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         uint256 reward = _currentReward();
         
@@ -173,13 +169,9 @@ contract arNXMVault is Ownable {
     returns (uint256 wAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-<<<<<<< HEAD:contracts/core/arNXM.sol
         
         // Get all balances of wNXM on this contract, being staked, then reward allowed to be distributed.
         uint256 balance = wNXM.balanceOf( address(this) );
-=======
-        uint256 balance = wNXM.balanceOf( address(this) ).sub(lastReward);
->>>>>>> 9249805525d598e404efd854c638046316968875:contracts/core/arNXMVault.sol
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         uint256 reward = _currentReward();
         
