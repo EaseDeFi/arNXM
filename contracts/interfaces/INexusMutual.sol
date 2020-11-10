@@ -23,5 +23,10 @@ interface IPooledStaking {
     function depositAndStake(uint256 deposit, address[] calldata protocols, uint256[] calldata amounts) external;
     function stakerContractStake(address staker, address protocol) external view returns (uint256);
     function withdraw(uint256 amount) external;
+    function stakerReward(address staker) external view returns (uint256);
 }
 
+interface IClaimsData {
+    function getClaimStatus(uint256 claimId) external view returns (uint256, uint256);
+    function getClaimDateUpd(uint256 claimId) external view returns (uint256);
+}

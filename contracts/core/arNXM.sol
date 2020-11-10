@@ -15,14 +15,26 @@ contract arNXMVault is Ownable {
     using SafeMath for uint;
     using SafeERC20 for IERC20;
     
-    // How much to unstake each week.
+    // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
     
     // Amount of withdrawals from the last week. Used to determine how much to keep for next week.
     uint256 public withdrawals;
     
-    // Percent over what was withdrawn last week to reserve.
+    // Withdrawals may be paused if a hack has recently happened. Timestamp of when the pause happened.
+    uint256 public withdrawalsPaused;
+    
+    // Amount of time withdrawals may be paused after a hack.
+    uint256 public pauseDuration;
+    
+    // Percent over what was withdrawn last week to reserve. 10 == 1%; 1000 == 100%.
     uint256 public bufferPercent;
+    
+    // Address that will receive administration funds from the contract.
+    address public beneficiary;
+    
+    // Percent of funds to be distributed for administration of the contract. 10 == 1%; 1000 == 100%.
+    uint256 public adminPercent;
     
     // Timestamp of when the last restake took place--7 days between each.
     uint256 public lastRestake;
@@ -48,14 +60,11 @@ contract arNXMVault is Ownable {
      * @param _wNXM Address of the wNXM contract.
      * @param _arNXM Address of the arNXM contract.
      * @param _nxmMaster Address of Nexus' master address (to fetch others).
-     * @param _bufferPercent The percent extra to keep over withdrawals from the previous week.
     **/
     constructor(address[] memory _protocols, 
                 address _wNXM, 
                 address _arNXM, 
-                address _nxmMaster,
-                uint256 _bufferPercent,
-                uint256 _unstakePercent)
+                address _nxmMaster)
       public
     {
         for (uint256 i = 0; i < _protocols.length; i++) protocols.push(_protocols[i]);
@@ -63,8 +72,10 @@ contract arNXMVault is Ownable {
         wNXM = IERC20(_wNXM);
         arNXM = IERC20(_arNXM);
         nxmMaster = INXMMaster(_nxmMaster);
-        bufferPercent = _bufferPercent;
-        unstakePercent = _unstakePercent;
+        bufferPercent = 500;
+        unstakePercent = 70;
+        adminPercent = 200;
+        pauseDuration = 7 days;
     }
     
     /**
@@ -74,9 +85,13 @@ contract arNXMVault is Ownable {
     function deposit(uint256 _wAmount)
       external
     {
-        wNXM.safeTransferFrom(msg.sender, address(this), _wAmount);
+        // This amount must be determined before arNXM burn.
         uint256 arNXMAmount = arNXMValue(_wAmount);
+
+        wNXM.safeTransferFrom(msg.sender, address(this), _wAmount);
         arNXM.mint(msg.sender, arNXMAmount);
+        
+        // Deposit does not affect the withdrawals variable.
     }
     
     /**
@@ -86,9 +101,14 @@ contract arNXMVault is Ownable {
     function withdraw(uint256 _arAmount)
       external
     {
+        require(block.timestamp.sub(withdrawalsPaused) > pauseDuration, "Withdrawals are temporarily paused.");
+        
+        // This amount must be determined before arNXM burn.
         uint256 wNXMAmount = wNXMValue(_arAmount);
+        
         arNXM.burn(msg.sender, _arAmount);
         wNXM.safeTransfer(msg.sender, wNXMAmount);
+        
         withdrawals = withdrawals.add(wNXMAmount);
     }
 
@@ -101,11 +121,13 @@ contract arNXMVault is Ownable {
         // Check that this is only called once per week.
         require(lastRestake.add(7 days) <= block.timestamp, "It has not been 7 days since the last restake.");
         
+        // All Nexus function.
         _withdrawNxm();
         _getRewardsNxm();
         _unstakeNxm();
         _stakeNxm();
         
+        // Reset variables.
         lastRestake = block.timestamp;
         withdrawals = 0;
     }
@@ -121,11 +143,17 @@ contract arNXMVault is Ownable {
     returns (uint256 arAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
+        
+        // Get all balances of wNXM on this contract, being staked, then reward allowed to be distributed.
         uint256 balance = wNXM.balanceOf( address(this) );
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         uint256 reward = _currentReward();
+        
+        // Find totals of both tokens.
         uint256 totalW = balance.add(stakeDeposit).add(reward);
         uint256 totalAr = arNXM.totalSupply();
+        
+        // Find exchange amount of one token, then find exchange amount for full value.
         uint256 oneAmount = ( totalAr.mul(1e18) ).div(totalW);
         arAmount = _wAmount.mul(oneAmount).div(1e18);
     }
@@ -141,13 +169,40 @@ contract arNXMVault is Ownable {
     returns (uint256 wAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
+        
+        // Get all balances of wNXM on this contract, being staked, then reward allowed to be distributed.
         uint256 balance = wNXM.balanceOf( address(this) );
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         uint256 reward = _currentReward();
+        
+        // Find totals of both tokens.
         uint256 totalW = balance.add(stakeDeposit).add(reward);
         uint256 totalAr = arNXM.totalSupply();
+        
+        // Find exchange amount of one token, then find exchange amount for full value.
         uint256 oneAmount = ( totalW.mul(1e18) ).div(totalAr);
         wAmount = _arAmount.mul(oneAmount).div(1e18);
+    }
+    
+    /**
+     * @dev Anyone may call this function to pause withdrawals for a certain amount of time.
+     *      We check Nexus contracts for a recent accepted claim, then can pause to avoid further withdrawals.
+     * @param _claimId The ID of the cover that has been accepted for a confirmed hack.
+    **/
+    function pauseWithdrawals(uint256 _claimId)
+      external
+    {
+        IClaimsData claimsData = IClaimsData( _getClaimsData() );
+        
+        (/*coverId*/, uint256 status) = claimsData.getClaimStatus(_claimId);
+        uint256 dateUpdate = claimsData.getClaimDateUpd(_claimId);
+        
+        // Status must be 14 and date update must be within the past 7 days.
+        if (status == 14 && block.timestamp.sub(dateUpdate) <= 7 days) {
+            
+            withdrawalsPaused = block.timestamp;
+            
+        }
     }
     
     /**
@@ -157,6 +212,7 @@ contract arNXMVault is Ownable {
       internal
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
+        
         uint256 amount = pool.stakerMaxWithdrawable( address(this) );
         pool.withdraw(amount);
     }
@@ -168,7 +224,22 @@ contract arNXMVault is Ownable {
       internal
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
+        
+        // Find current reward, find user reward (transfers reward to admin within this).
+        uint256 reward = pool.stakerReward( address(this) );
+        uint256 userReward = _adminRewardsNxm(reward);
+        
         pool.withdrawReward( address(this) );
+        lastReward = userReward;
+    }
+    
+    function _adminRewardsNxm(uint256 reward)
+      internal
+    returns (uint256 userReward)
+    {
+        uint256 adminReward = reward.mul(adminPercent).div(1000);
+        arNXM.mint(beneficiary, adminReward);
+        userReward = reward.sub(adminReward);
     }
 
     /**
@@ -179,8 +250,10 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
-        uint256 unstakeAmount = stake * unstakePercent / 100;
+        uint256 unstakeAmount = stake * unstakePercent / 1000;
 
+        // Amounts must be in storage here and have unstake amounts pushed to it.
+        // TODO: Better way to do this?
         for (uint256 i = 0; i < protocols.length; i++) amounts.push(unstakeAmount);
 
         pool.requestUnstake(protocols, amounts);
@@ -195,7 +268,7 @@ contract arNXMVault is Ownable {
       internal
     {
         uint256 balance = wNXM.balanceOf( address(this) );
-        uint256 toReserve = withdrawals.add( ( withdrawals.mul(bufferPercent).div(100) ) );
+        uint256 toReserve = withdrawals.add( ( withdrawals.mul(bufferPercent).div(1000) ) );
         
         if (toReserve < balance) {
             
@@ -221,10 +294,12 @@ contract arNXMVault is Ownable {
         uint256 duration = 7 days;
         uint256 timeElapsed = block.timestamp.sub(lastRestake);
         
+        // Full reward is added to the balance if it's been more than the disbursement duration.
         if (timeElapsed >= duration) {
             
             reward = lastReward;
-            
+        
+        // Otherwise, disburse amounts linearly over duration.
         } else {
             
             // 1e18 just for a buffer.
@@ -247,7 +322,19 @@ contract arNXMVault is Ownable {
     }
     
     /**
-     * @dev Owner may change how much to save in addition to withdrawals from last week.
+     * @dev Get current address of the Nexus Claims Data contract.
+     * @return claimsData Address of the Nexus Claims Data contract.
+    **/
+    function _getClaimsData()
+      internal
+      view
+    returns (address claimsData)
+    {
+        claimsData = nxmMaster.getLatestAddress("CD");
+    }
+    
+    /**
+     * @dev Owner may change how much to save in addition to withdrawals from the previous week.
      * @param _bufferPercent The new buffer percent to change to.
     **/
     function changeBufferPercent(uint256 _bufferPercent)
@@ -273,11 +360,34 @@ contract arNXMVault is Ownable {
      * @dev Owner may change protocols that we stake for.
      * @param _protocols New list of protocols to stake for.
     **/
-    function changeProtocol(address[] calldata _protocols)
+    function changeProtocols(address[] calldata _protocols)
       external
       onlyOwner
     {
         protocols = _protocols;
     }
     
+    /**
+     * @dev Owner may change the amount of time that withdrawals are paused after a hack is confirmed.
+     * @param _pauseDuration The new amount of time that withdrawals will be paused.
+    **/
+    function changePauseDuration(uint256 _pauseDuration)
+      external
+      onlyOwner
+    {
+        pauseDuration = _pauseDuration;
+    }
+    
+    /**
+     * @dev Change the percent of rewards that are given for administration of the contract.
+     * @param _adminPercent The percent of rewards to be given for administration (10 == 1%, 1000 == 100%)
+    **/
+    function changeAdminPercent(uint256 _adminPercent)
+      external
+      onlyOwner
+    {
+        require(_adminPercent <= 1000);
+        adminPercent = _adminPercent;
+    }
+
 }
