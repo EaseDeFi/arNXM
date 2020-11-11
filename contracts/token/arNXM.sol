@@ -1,8 +1,9 @@
 pragma solidity ^0.6.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "../general/Ownable.sol";
 
-contract ArmorToken is ERC20, Ownable {
+contract ArNXMToken is ERC20, Ownable {
 
     constructor() ERC20("Armor NXM", "arNXM") public {
         _mint( msg.sender, 300000 * (10 ** 18) );
