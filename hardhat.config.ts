@@ -15,7 +15,18 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
 // Go to https://hardhat.org/config/ to learn more
 
 export default {
-  solidity: "0.6.12",
+  solidity: {
+    compilers: [
+      {
+        version: "0.6.12"
+      }
+    ],
+    overrides: {
+      "contracts/nexusMutual": {
+        version: "0.5.7",
+      }
+    }
+  },
   networks: {
     coverage: {
       url: 'http://localhost:8555'
