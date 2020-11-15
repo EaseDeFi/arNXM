@@ -4,7 +4,7 @@
   "description": "armor smart contract",
   "scripts": {
     "build": "npm run compile",
-    "compile": "npx hardhat compile",
+    "compile": "npx hardhat compile && npx hardhat compile --config ./hardhat.config.nexusmutual.ts",
     "ganache": "ganache-cli -e 10000000000 -a 100",
     "lint": "eslint . --fix && solium -d contracts/ --fix",
     "lintNoFix": "eslint . && solium -d contracts/",

@@ -1,35 +1,16 @@
 // got from nexusmutual/smart-contracts and changed to typescript
 import { ethers } from "hardhat";
-import { Contract, ContractFactory, Signer } from "ethers";
-import { ether, time } from "@openzeppelin/test-helpers";
-import { hex } from './utils';
+import { Contract, ContractFactory, Signer, BigNumber } from "ethers";
+import { time } from "@openzeppelin/test-helpers";
+import { hex, hexSized } from './utils';
+import { deployProxy, upgradeProxy, transferProxyOwnership } from "./OwnedUpgradeabilityProxy";
 
+function ether(amount: string) : BigNumber {
+  return ethers.utils.parseEther(amount);
+}
 const QE = '0x51042c4d8936a7764d18370a6a0762b860bb8e07';
 const INITIAL_SUPPLY = ether('1500000');
-const EXCHANGE_TOKEN = ether('10000');
-const EXCHANGE_ETHER = ether('10');
-const POOL_ETHER = ether('3500');
 const POOL_DAI = ether('900000');
-
-async function deployProxy(contract: ContractFactory) : Promise<Contract> {
-  const OwnedUpgradeabilityProxy = await ethers.getContractFactory('OwnedUpgradeabilityProxy');
-  const implementation = await contract.deploy();
-  const proxy = await OwnedUpgradeabilityProxy.deploy(implementation.address);
-  return contract.attach(proxy.address);
-};
-
-async function upgradeProxy(proxyAddress: string, contract: ContractFactory) {
-  const OwnedUpgradeabilityProxy = await ethers.getContractFactory('OwnedUpgradeabilityProxy');
-  const implementation = await contract.deploy();
-  const proxy = await OwnedUpgradeabilityProxy.attach(proxyAddress);
-  await proxy.upgradeTo(implementation.address);
-};
-
-async function transferProxyOwnership(proxyAddress: string, deployOwner: string) {
-  const OwnedUpgradeabilityProxy = await ethers.getContractFactory('OwnedUpgradeabilityProxy');
-  const proxy = await OwnedUpgradeabilityProxy.attach(proxyAddress);
-  await proxy.transferProxyOwnership(deployOwner);
-};
 
 export class NexusMutual {
   deployer: Signer;
@@ -57,9 +38,9 @@ export class NexusMutual {
     this.deployer = deployer;
   }
 
-  async deploy(dai: Contract, mkr: Contract, uniswapFactory: Contract) {
+  async deploy(dai: Contract, uniswapFactory: Contract) {
 
-    const DSValue = await ethers.getContractFactory('NXMDSValue');
+    const DSValue = await ethers.getContractFactory('NXMDSValueMock');
     // nexusmutual
     const NXMToken = await ethers.getContractFactory('NXMToken');
     const Claims = await ethers.getContractFactory('Claims');
@@ -92,22 +73,11 @@ export class NexusMutual {
     const PooledStaking = await ethers.getContractFactory('PooledStaking');
     
     const owner = await this.deployer.getAddress();
-
-    // deploy external contracts
-    //const dai = await ERC20Mock.deploy();
     const dsv = await DSValue.deploy(owner);
-    //const factory = await ExchangeFactoryMock.deploy();
-    //const exchange = await ExchangeMock.deploy(dai.address, factory.address);
-
-    // initialize external contracts
-    await dai.mint(ether('10000000'));
-    //await factory.setFactory(dai.address, exchange.address);
-    //await dai.transfer(exchange.address, EXCHANGE_TOKEN);
-    //await exchange.recieveEther({ value: EXCHANGE_ETHER });
 
     // regular contracts
-    const cl = await Claims.deploy();
     const cd = await ClaimsData.deploy();
+    const cl = await Claims.deploy();
     const cr = await ClaimsReward.deploy();
 
     const mc = await MCR.deploy();
@@ -131,7 +101,7 @@ export class NexusMutual {
     const gv = await deployProxy(DisposableGovernance);
 
     // non-upgradable contracts
-    const cp = await ClaimProofs.deploy(master.address);
+    const cp = await ClaimProofs.deploy();
 
     const contractType = code => {
 
@@ -177,7 +147,7 @@ export class NexusMutual {
       [owner], // advisory board members
     );
 
-    await pc.initialize(mr.address, { gas: 10e6 });
+    await pc.initialize(mr.address);
 
     await gv.initialize(
       3 * 24 * 3600, // tokenHoldingTime
@@ -188,7 +158,7 @@ export class NexusMutual {
       24 * 3600, // actionWaitingTime
     );
 
-    await ps.initialize(
+    await ps['initialize(address,uint256,uint256,uint256,uint256)'](
       tc.address,
       ether('20'), // min stake
       ether('20'), // min unstake
@@ -197,21 +167,21 @@ export class NexusMutual {
     );
 
     await pd.changeMasterAddress(master.address);
-    await pd.updateUintParameters(hex('MCRMIN'), ether('7000')); // minimum capital in eth
-    await pd.updateUintParameters(hex('MCRSHOCK'), 50); // mcr shock parameter
-    await pd.updateUintParameters(hex('MCRCAPL'), 20); // capacityLimit 10: seemingly unused parameter
+    await pd.updateUintParameters(hexSized('MCRMIN', 8), ether('7000')); // minimum capital in eth
+    await pd.updateUintParameters(hexSized('MCRSHOCK', 8), 50); // mcr shock parameter
+    await pd.updateUintParameters(hexSized('MCRCAPL', 8), 20); // capacityLimit 10: seemingly unused parameter
 
     await cd.changeMasterAddress(master.address);
-    await cd.updateUintParameters(hex('CAMINVT'), 36); // min voting time 36h
-    await cd.updateUintParameters(hex('CAMAXVT'), 72); // max voting time 72h
-    await cd.updateUintParameters(hex('CADEPT'), 7); // claim deposit time 7 days
-    await cd.updateUintParameters(hex('CAPAUSET'), 3); // claim assessment pause time 3 days
+    await cd.updateUintParameters(hexSized('CAMINVT', 8), 36); // min voting time 36h
+    await cd.updateUintParameters(hexSized('CAMAXVT', 8), 72); // max voting time 72h
+    await cd.updateUintParameters(hexSized('CADEPT', 8), 7); // claim deposit time 7 days
+    await cd.updateUintParameters(hexSized('CAPAUSET', 8), 3); // claim assessment pause time 3 days
 
     await td.changeMasterAddress(master.address);
-    await td.updateUintParameters(hex('RACOMM'), 50); // staker commission percentage 50%
-    await td.updateUintParameters(hex('CABOOKT'), 6); // "book time" 6h
-    await td.updateUintParameters(hex('CALOCKT'), 7); // ca lock 7 days
-    await td.updateUintParameters(hex('MVLOCKT'), 2); // ca lock mv 2 days
+    await td.updateUintParameters(hexSized('RACOMM', 8), 50); // staker commission percentage 50%
+    await td.updateUintParameters(hexSized('CABOOKT', 8), 6); // "book time" 6h
+    await td.updateUintParameters(hexSized('CALOCKT', 8), 7); // ca lock 7 days
+    await td.updateUintParameters(hexSized('MVLOCKT', 8), 2); // ca lock mv 2 days
 
     await gv.changeMasterAddress(master.address);
     await master.switchGovernanceAddress(gv.address);
@@ -237,8 +207,8 @@ export class NexusMutual {
     const POOL_DAI = ether('2000000');
 
     // fund pools
-    await p1.sendEther({ from: owner, value: POOL_ETHER.divn(2) });
-    await p2.sendEther({ from: owner, value: POOL_ETHER.divn(2) });
+    await p1.connect(this.deployer).sendEther({ value: POOL_ETHER.div(2) });
+    await p2.connect(this.deployer).sendEther({ value: POOL_ETHER.div(2) });
     await dai.transfer(p2.address, POOL_DAI);
 
     // add mcr
@@ -246,13 +216,13 @@ export class NexusMutual {
       20000, // mcr% = 200.00%
       ether('50000'), // mcr = 5000 eth
       ether('100000'), // vFull = 90000 ETH + 2M DAI = 90000 ETH + 10000 ETH = 100000 ETH
-      [hex('ETH'), hex('DAI')],
+      [hexSized('ETH', 4), hexSized('DAI', 4)],
       [100, 20000], // rates: 1.00 eth/eth, 200.00 dai/eth
       20190103,
     );
 
     await p2.saveIADetails(
-      [hex('ETH'), hex('DAI')],
+      [hexSized('ETH',4), hexSized('DAI',4)],
       [100, 20000],
       20190103,
       true,

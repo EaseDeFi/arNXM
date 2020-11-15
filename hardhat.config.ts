@@ -7,7 +7,8 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
   const accounts = await hre.ethers.getSigners();
 
   for (const account of accounts) {
-    console.log(await account.address);
+    console.log(await account.getAddress());
+    console.log((await account.getBalance()).toString());
   }
 });
 
@@ -16,18 +17,21 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
 
 export default {
   solidity: {
-    compilers: [
-      {
-        version: "0.6.12"
-      }
-    ],
-    overrides: {
-      "contracts/nexusMutual": {
-        version: "0.5.7",
+    version: "0.6.12",
+    settings: {
+      optimizer : {
+        enabled: true,
+        runs: 200
       }
     }
   },
   networks: {
+    hardhat: {
+      gas: "auto",
+      accounts: {
+        accountsBalance: "1000000000000000000000000"
+      }
+    },
     coverage: {
       url: 'http://localhost:8555'
     }
