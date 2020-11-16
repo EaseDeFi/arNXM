@@ -60,7 +60,7 @@ describe('arnxm', function(){
     
     wNXM = await WNXM.deploy(nxm.nxm.address);
     arNXM = await ARNXM.deploy();
-    arNXMVault = await ARNXMVault.deploy(protocolsAddress, wNXM.address, arNXM.address, nxm.master.address);
+    arNXMVault = await ARNXMVault.deploy(protocolsAddress, wNXM.address, arNXM.address,nxm.nxm.address, nxm.master.address);
     await nxm.registerUser(userAddress);
     await nxm.registerUser(wNXM.address);
     await nxm.registerUser(arNXMVault.address);

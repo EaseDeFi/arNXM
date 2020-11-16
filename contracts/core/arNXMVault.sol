@@ -2,10 +2,9 @@ pragma solidity ^0.6.6;
 
 import '../general/Ownable.sol';
 import '../libraries/SafeERC20.sol';
-import '../interfaces/IwNXM.sol';
+import '../interfaces/IWNXM.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/IWNXM.sol';
-import '../interfaces/SafeERC20.sol';
 import '../interfaces/INexusMutual.sol';
 /**
  * @title arNXM Vault
@@ -16,7 +15,6 @@ contract arNXMVault is Ownable {
     
     using SafeMath for uint;
     using SafeERC20 for IERC20;
-    using SafeERC20 for IwNXM;
     
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
@@ -54,7 +52,7 @@ contract arNXMVault is Ownable {
     address[] private unstakingProtocols;
 
     // Nxm tokens.
-    IwNXM public wNxm;
+    IERC20 public wNxm;
     IERC20 public nxm;
     IERC20 public arNxm;
     
@@ -80,7 +78,7 @@ contract arNXMVault is Ownable {
     {
         for (uint256 i = 0; i < _protocols.length; i++) protocols.push(_protocols[i]);
         
-        wNxm = IwNXM(_wNxm);
+        wNxm = IERC20(_wNxm);
         nxm = IERC20(_nxm);
         arNxm = IERC20(_arNxm);
         nxmMaster = INxmMaster(_nxmMaster);
@@ -319,7 +317,6 @@ contract arNXMVault is Ownable {
       returns (uint256 toStake)
     {
         uint256 balance = wNxm.balanceOf( address(this) );
-        IWNXM(address(wNxm)).unwrap(balance);
         IERC20( _getNXM() ).approve( _getTokenController(), balance);
         uint256 toReserve = withdrawals.add( ( withdrawals.mul(bufferPercent).div(1000) ) );
         
@@ -333,8 +330,8 @@ contract arNXMVault is Ownable {
             pool.depositAndStake(toStake, protocols, amounts);
         }
         delete amounts;
-        uint256 leftover = wNXM.balanceOf(address(this));
-        IWNXM(address(wNXM)).wrap(leftover);
+        uint256 leftover = wNxm.balanceOf(address(this));
+        IWNXM(address(wNxm)).wrap(leftover);
     }
     
     /**
@@ -372,7 +369,7 @@ contract arNXMVault is Ownable {
     {
         // Wrap our full NXM balance.
         uint256 amount = nxm.balanceOf( address(this) );
-        wNxm.wrap(amount);
+        IWNXM(address(wNxm)).wrap(amount);
     }
     
     /**
@@ -382,7 +379,7 @@ contract arNXMVault is Ownable {
     function _unwrapWNxm(uint256 _amount)
       internal
     {
-        wNxm.unwrap(_amount);
+        IWNXM(address(wNxm)).unwrap(_amount);
     }
     
     /**
