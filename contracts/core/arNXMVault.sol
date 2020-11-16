@@ -7,11 +7,11 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 
 /**
- * @title arNxm Vault
- * @dev Vault to stake wNxm while maintaining your liquidity.
+ * @title arNXM Vault
+ * @dev Vault to stake wNXM while maintaining your liquidity.
  * @author Armor.fi -- Robert M.C. Forster
 **/
-contract arNxmVault is Ownable {
+contract arNXMVault is Ownable {
     
     using SafeMath for uint;
     using SafeERC20 for IERC20;
