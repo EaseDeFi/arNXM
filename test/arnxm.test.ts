@@ -86,6 +86,7 @@ describe('arnxm', function(){
       await arNXM.connect(owner).mint(ownerAddress, AMOUNT);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT);
+      await arNXMVault.connect(user).approveNxmToWNXM();
     });
 
     it('should be able to restake', async function(){

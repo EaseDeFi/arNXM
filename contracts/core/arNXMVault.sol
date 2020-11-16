@@ -59,8 +59,8 @@ contract arNXMVault is Ownable {
     // Nxm Master address.
     INxmMaster public nxmMaster;
     
-    event Deposit(address user, uint256 wAmount, uint256 timestamp);
-    event Withdrawal(address user, uint256 arAmount, uint256 timestamp);
+    event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
+    event Withdrawal(address indexed user, uint256 arAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 userReward, uint256 unstaked, uint256 staked, uint256 timestamp);
     
     /**
@@ -91,6 +91,10 @@ contract arNXMVault is Ownable {
 
     function changeBeneficiary(address _newBeneficiary) external onlyOwner {
         beneficiary = _newBeneficiary;
+    }
+
+    function approveNxmToWNXM() external {
+        _approveNxm(address(wNxm));
     }
     
     /**
@@ -316,10 +320,11 @@ contract arNXMVault is Ownable {
       internal
       returns (uint256 toStake)
     {
+        _approveNxm(_getTokenController());
         uint256 balance = wNxm.balanceOf( address(this) );
-        IERC20( _getNXM() ).approve( _getTokenController(), balance);
         uint256 toReserve = withdrawals.add( ( withdrawals.mul(bufferPercent).div(1000) ) );
-        
+       
+         
         // If we do need to restake funds...
         if (toReserve < balance) {
             // Determine how much to stake then unwrap wNxm to be able to stake it.
@@ -425,11 +430,10 @@ contract arNXMVault is Ownable {
     /**
      * @dev Approve wNxm contract to be able to transferFrom Nxm from this contract.
     **/
-    function _approveNxm()
-      external
-      onlyOwner
+    function _approveNxm(address _to)
+      internal
     {
-        nxm.safeApprove( address(wNxm), uint256(-1) );
+        nxm.safeApprove( _to, uint256(-1) );
     }
     
     /**
