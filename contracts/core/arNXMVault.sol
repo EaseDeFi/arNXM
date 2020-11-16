@@ -4,8 +4,9 @@ import '../general/Ownable.sol';
 import '../libraries/SafeERC20.sol';
 import '../interfaces/IwNXM.sol';
 import '../interfaces/IERC20.sol';
+import '../interfaces/IWNXM.sol';
+import '../interfaces/SafeERC20.sol';
 import '../interfaces/INexusMutual.sol';
-
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM while maintaining your liquidity.
@@ -50,8 +51,7 @@ contract arNXMVault is Ownable {
     // Amount to unstake each time.
     uint256[] private amounts;
     
-    // Amount to stake each time.
-    uint256[] private stakes;
+    address[] private unstakingProtocols;
 
     // Nxm tokens.
     IwNXM public wNxm;
@@ -88,6 +88,11 @@ contract arNXMVault is Ownable {
         unstakePercent = 70;
         adminPercent = 200;
         pauseDuration = 7 days;
+        beneficiary = msg.sender;
+    }
+
+    function changeBeneficiary(address _newBeneficiary) external onlyOwner {
+        beneficiary = _newBeneficiary;
     }
     
     /**
@@ -173,10 +178,13 @@ contract arNXMVault is Ownable {
         // Find totals of both tokens.
         uint256 totalW = balance.add(stakeDeposit).add(reward);
         uint256 totalAr = arNxm.totalSupply();
-        
         // Find exchange amount of one token, then find exchange amount for full value.
-        uint256 oneAmount = ( totalAr.mul(1e18) ).div(totalW);
-        arAmount = _wAmount.mul(oneAmount).div(1e18);
+        if(totalW == 0){
+            arAmount = _wAmount;
+        } else {
+            uint256 oneAmount = ( totalAr.mul(1e18) ).div(totalW);
+            arAmount = _wAmount.mul(oneAmount).div(1e18);
+        }
     }
     
     /**
@@ -282,15 +290,24 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
-        unstakeAmount = stake * unstakePercent / 1000;
-
-        // Amounts must be in storage here and have unstake amounts pushed to it.
-        // TODO: Better way to do this?
-        for (uint256 i = 0; i < protocols.length; i++) amounts.push(unstakeAmount);
-
-        pool.requestUnstake(protocols, amounts);
-        
+        uint256 unstakeAmount = stake * unstakePercent / 1000;
+        for (uint256 i = 0; i < protocols.length; i++) {
+          if(_protocolUnstakable(protocols[i])){
+            amounts.push(unstakeAmount);
+            unstakingProtocols.push(protocols[i]);
+          }
+        }
+        uint256 lastId = pool.lastUnstakeRequestId();
+        pool.requestUnstake(unstakingProtocols, amounts, lastId);
         delete amounts;
+        delete unstakingProtocols;
+    }
+
+    function _protocolUnstakable(address _protocol) internal returns(bool) {
+        IPooledStaking pool = IPooledStaking( _getPool() );
+        uint256 stake = pool.stakerContractStake(address(this), _protocol);
+        uint256 requested = pool.stakerContractPendingUnstakeTotal(address(this), _protocol);
+        return stake > requested;
     }
 
     /**
@@ -302,24 +319,22 @@ contract arNXMVault is Ownable {
       returns (uint256 toStake)
     {
         uint256 balance = wNxm.balanceOf( address(this) );
+        IWNXM(address(wNxm)).unwrap(balance);
+        IERC20( _getNXM() ).approve( _getTokenController(), balance);
         uint256 toReserve = withdrawals.add( ( withdrawals.mul(bufferPercent).div(1000) ) );
         
         // If we do need to restake funds...
         if (toReserve < balance) {
-            
             // Determine how much to stake then unwrap wNxm to be able to stake it.
             toStake = balance.sub(toReserve);
             _unwrapWNxm(toStake);
-            
-            for (uint256 i = 0; i < protocols.length; i++) stakes.push(toStake);
-        
+            for (uint256 i = 0; i < protocols.length; i++) amounts.push(toStake);
             IPooledStaking pool = IPooledStaking( _getPool() );
-            pool.depositAndStake(toStake, protocols, stakes);
-        
+            pool.depositAndStake(toStake, protocols, amounts);
         }
-        
-        // Clear stakes storage variable.
-        delete stakes;
+        delete amounts;
+        uint256 leftover = wNXM.balanceOf(address(this));
+        IWNXM(address(wNXM)).wrap(leftover);
     }
     
     /**
@@ -381,7 +396,23 @@ contract arNXMVault is Ownable {
     {
         pool = nxmMaster.getLatestAddress("PS");
     }
+
+    function _getNXM()
+      internal
+      view
+    returns(address nxm)
+    {
+        nxm = nxmMaster.tokenAddress();
+    }
     
+    function _getTokenController()
+      internal
+      view
+    returns(address controller)
+    {
+        controller = nxmMaster.getLatestAddress("TC");
+    }
+
     /**
      * @dev Get current address of the Nexus Claims Data contract.
      * @return claimsData Address of the Nexus Claims Data contract.

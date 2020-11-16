@@ -11,7 +11,7 @@ contract ArNXMToken is ERC20, Ownable {
     
     function mint(address _to, uint256 _amount)
       external
-      onlyOwner
+// removed temporarily      onlyOwner
     returns (bool)
     {
         _mint(_to, _amount);
@@ -20,7 +20,7 @@ contract ArNXMToken is ERC20, Ownable {
     
     function burn(address _from, uint256 _amount)
       external
-      onlyOwner
+//      onlyOwner
     returns (bool)
     {
         _burn(_from, _amount);
