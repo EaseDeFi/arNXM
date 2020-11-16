@@ -5,7 +5,7 @@ pragma solidity ^0.6.6;
  **/
 
 // to get nexus mutual contract address
-interface INXMMaster {
+interface INxmMaster {
     function tokenAddress() external view returns(address);
     function owner() external view returns(address);
     function pauseTime() external view returns(uint);
