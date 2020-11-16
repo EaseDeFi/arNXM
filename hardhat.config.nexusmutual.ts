@@ -7,8 +7,7 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
   const accounts = await hre.ethers.getSigners();
 
   for (const account of accounts) {
-    console.log(await account.getAddress());
-    console.log((await account.getBalance()).toString());
+    console.log(await account.address);
   }
 });
 
@@ -17,9 +16,9 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
 
 export default {
   solidity: {
-    version: "0.6.12",
+    version: "0.5.7",
     settings: {
-      optimizer : {
+      optimizer: {
         enabled: true,
         runs: 200
       }
@@ -35,6 +34,9 @@ export default {
     coverage: {
       url: 'http://localhost:8555'
     }
+  },
+  paths: {
+    sources: "./nexusmutual_contracts"
   }
 };
 
