@@ -248,4 +248,10 @@ export class NexusMutual {
     this.pooledStaking = ps;
     this.claimProofs = cp;
   }
+
+  async registerUser(member: string) {
+    const fee = ether('0.002');
+    await this.memberRoles.connect(this.deployer).payJoiningFee(member, { value: fee });
+    await this.memberRoles.connect(this.deployer).kycVerdict(member, true);
+  }
 }

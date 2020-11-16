@@ -16,11 +16,11 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
 
 export default {
   solidity: {
-    version: "0.5.7",
+    version: "0.5.17",
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
+        runs: 300
       }
     }
   },
@@ -29,7 +29,8 @@ export default {
       gas: "auto",
       accounts: {
         accountsBalance: "1000000000000000000000000"
-      }
+      },
+      allowUnlimitedContractSize: true
     },
     coverage: {
       url: 'http://localhost:8555'

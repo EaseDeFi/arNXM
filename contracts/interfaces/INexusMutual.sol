@@ -16,12 +16,14 @@ interface INxmMaster {
 }
 
 interface IPooledStaking {
+    function lastUnstakeRequestId() external view returns(uint256);
     function stakerDeposit(address user) external view returns (uint256);
     function stakerMaxWithdrawable(address user) external view returns (uint256);
     function withdrawReward(address user) external;
-    function requestUnstake(address[] calldata protocols, uint256[] calldata amounts) external;
+    function requestUnstake(address[] calldata protocols, uint256[] calldata amounts, uint256 insertAfter) external;
     function depositAndStake(uint256 deposit, address[] calldata protocols, uint256[] calldata amounts) external;
     function stakerContractStake(address staker, address protocol) external view returns (uint256);
+    function stakerContractPendingUnstakeTotal(address staker, address protocol) external view returns(uint256);
     function withdraw(uint256 amount) external;
     function stakerReward(address staker) external view returns (uint256);
 }
