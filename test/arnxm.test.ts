@@ -1,6 +1,6 @@
 import { ethers } from "hardhat";
 import { time } from "@openzeppelin/test-helpers";
-import { Contract, Signer, BigNumber } from "ethers";
+import { providers, Contract, Signer, BigNumber } from "ethers";
 import { NexusMutual } from "./NexusMutual";
 
 function ether(amount: string) : BigNumber {
@@ -9,7 +9,7 @@ function ether(amount: string) : BigNumber {
 
 const EXCHANGE_TOKEN = ether('10000');
 const EXCHANGE_ETHER = ether('10');
-const AMOUNT = ether('100');
+const AMOUNT = ether('1000');
 describe('arnxm', function(){
   let arNXMVault : Contract;
   let arNXM : Contract;
@@ -23,6 +23,7 @@ describe('arnxm', function(){
   let protocols : Contract[] = [];
 
   beforeEach(async function(){
+    protocols = [];
     let signers = await ethers.getSigners();
     owner = signers[0];
     user = signers[1];
@@ -91,6 +92,26 @@ describe('arnxm', function(){
 
     it('should be able to restake', async function(){
       await arNXMVault.connect(owner).restake();
+    });
+  });
+
+  describe('#withdraw', function(){
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await arNXM.connect(owner).mint(ownerAddress, AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT);
+      await arNXMVault.connect(user).approveNxmToWNXM();
+      await arNXMVault.connect(owner).restake();
+    });
+
+    it.only('should be able to restake', async function(){
+      await (user.provider as providers.JsonRpcProvider).send("evm_increaseTime", [8640000]);
+      await arNXMVault.connect(owner).restake();
+      await (user.provider as providers.JsonRpcProvider).send("evm_increaseTime", [8640000]);
+      const receipt = await nxm.pooledStaking._processPendingActions(10);
+      //console.log(await receipt.wait());
+      await arNXMVault.connect(user).withdraw(AMOUNT);
     });
   });
 });
