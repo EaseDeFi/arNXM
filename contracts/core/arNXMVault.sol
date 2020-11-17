@@ -123,7 +123,11 @@ contract arNXMVault is Ownable {
       external
     {
         require(block.timestamp.sub(withdrawalsPaused) > pauseDuration, "Withdrawals are temporarily paused.");
-        
+       
+        IPooledStaking pool = IPooledStaking(_getPool()); 
+        uint256 maxWithdrawable = pool.stakerMaxWithdrawable(address(this));
+        pool.withdraw(maxWithdrawable);
+        _wrapNxm();
         // This amount must be determined before arNxm burn.
         uint256 wNxmAmount = wNxmValue(_arAmount);
         
@@ -335,8 +339,6 @@ contract arNXMVault is Ownable {
             pool.depositAndStake(toStake, protocols, amounts);
         }
         delete amounts;
-        uint256 leftover = wNxm.balanceOf(address(this));
-        IWNXM(address(wNxm)).wrap(leftover);
     }
     
     /**
@@ -433,7 +435,7 @@ contract arNXMVault is Ownable {
     function _approveNxm(address _to)
       internal
     {
-        nxm.safeApprove( _to, uint256(-1) );
+        nxm.approve( _to, uint256(-1) );
     }
     
     /**

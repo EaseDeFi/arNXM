@@ -3,3 +3,5 @@ build/
 package-lock.json
 cache/
 artifacts/
+coverage/
+coverage.json
