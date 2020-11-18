@@ -65,17 +65,24 @@ describe('arnxm', function(){
     await nxm.registerUser(userAddress);
     await nxm.registerUser(wNXM.address);
     await nxm.registerUser(arNXMVault.address);
-    await nxm.nxm.connect(owner).transfer(userAddress, AMOUNT); 
-    await nxm.nxm.connect(user).approve(wNXM.address, AMOUNT); 
+    await nxm.nxm.connect(owner).transfer(userAddress, AMOUNT.mul(1000)); 
+    await nxm.nxm.connect(user).approve(wNXM.address, AMOUNT.mul(1000)); 
   });
 
   describe('#deposit', function(){
     beforeEach(async function(){
-      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).wrap(AMOUNT.mul(2));
       await arNXM.connect(owner).mint(ownerAddress, AMOUNT);
     });
 
-    it('should be able to deposit wnxm', async function(){
+    it('should be able to deposit wnxm when nothing is staked', async function(){
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT);
+    });
+    
+    it('should be able to deposit wnxm when there is stake', async function(){
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT);
     });
@@ -105,7 +112,7 @@ describe('arnxm', function(){
       await arNXMVault.connect(owner).restake();
     });
 
-    it.only('should be able to restake', async function(){
+    it('should be able to withdraw', async function(){
       await (user.provider as providers.JsonRpcProvider).send("evm_increaseTime", [8640000]);
       await arNXMVault.connect(owner).restake();
       await (user.provider as providers.JsonRpcProvider).send("evm_increaseTime", [8640000]);
