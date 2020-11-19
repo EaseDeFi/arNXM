@@ -17,13 +17,26 @@ task("accounts", "Prints the list of accounts", async (args, hre) => {
 
 export default {
   solidity: {
-    version: "0.6.12",
-    settings: {
-      optimizer : {
-        enabled: true,
-        runs: 200
+    compilers :[
+      {
+        version: "0.6.12",
+        settings: {
+          optimizer : {
+            enabled: true,
+            runs: 200
+          }
+        }
+      },
+      {
+        version: "0.5.17",
+        settings: {
+          optimizer : {
+            enabled: true,
+            runs: 200
+          }
+        }
       }
-    }
+    ]
   },
   networks: {
     hardhat: {

@@ -4,12 +4,12 @@
   "description": "armor smart contract",
   "scripts": {
     "build": "npm run compile",
-    "compile": "npx hardhat compile && npx hardhat compile --config ./hardhat.config.nexusmutual.ts",
+    "compile": "npx hardhat compile",
     "ganache": "ganache-cli -e 10000000000 -a 100",
     "lint": "eslint . --fix && solium -d contracts/ --fix",
     "lintNoFix": "eslint . && solium -d contracts/",
     "test": "NODE_OPTIONS='--max-old-space-size=4096' npx hardhat test",
-    "coverage": "npx hardhat coverage --network coverage"
+    "coverage": "NODE_OPTIONS='--max-old-space-size=4096' npx hardhat coverage"
   },
   "repository": {
     "type": "git",

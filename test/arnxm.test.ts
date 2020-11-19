@@ -7,6 +7,12 @@ function ether(amount: string) : BigNumber {
   return ethers.utils.parseEther(amount);
 }
 
+async function increase(seconds: number) {
+  const signers = await ethers.getSigners();
+  const signer = signers[0];
+  await (signer.provider as providers.JsonRpcProvider).send("evm_increaseTime", [seconds]);
+}
+
 const EXCHANGE_TOKEN = ether('10000');
 const EXCHANGE_ETHER = ether('10');
 const AMOUNT = ether('1000');
@@ -113,9 +119,9 @@ describe('arnxm', function(){
     });
 
     it('should be able to withdraw', async function(){
-      await (user.provider as providers.JsonRpcProvider).send("evm_increaseTime", [8640000]);
+      await increase(8640000);
       await arNXMVault.connect(owner).restake();
-      await (user.provider as providers.JsonRpcProvider).send("evm_increaseTime", [8640000]);
+      await increase(8640000);
       const receipt = await nxm.pooledStaking._processPendingActions(10);
       //console.log(await receipt.wait());
       await arNXMVault.connect(user).withdraw(AMOUNT);
