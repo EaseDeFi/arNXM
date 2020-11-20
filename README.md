@@ -6,4 +6,4 @@ Armor's arNXM vault allows users to stake wNXM tokens with Nexus Mutual without 
 This code has not been fully tested and is not audited. It is not on mainnet and will not be until testing is complete and multiple audits have been done.
 <br>
 <br>
-If you'd like to read more about the arNXM vault, please visit https://app.gitbook.com/@armorfi/s/armor/products/arnxm-yield-vault
+If you'd like to read more about the arNXM vault, please visit the "ArNXM: Yield Vault" section of https://armorfi.gitbook.io/armor/
