@@ -4,8 +4,8 @@ import '../general/Ownable.sol';
 import '../libraries/SafeERC20.sol';
 import '../interfaces/IWNXM.sol';
 import '../interfaces/IERC20.sol';
-import '../interfaces/IWNXM.sol';
 import '../interfaces/INexusMutual.sol';
+
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM while maintaining your liquidity.
@@ -19,17 +19,17 @@ contract arNXMVault is Ownable {
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
     
-    // Amount of withdrawals from the last week. Used to determine how much to keep for next week.
-    uint256 public withdrawals;
+    // Total amount of assets under management.
+    uint256 public aumTotal;
+    
+    // Percent of the AUM total that we should keep in reserve. 10 == 1%; 1000 == 100%.
+    uint256 public reservePercent;
     
     // Withdrawals may be paused if a hack has recently happened. Timestamp of when the pause happened.
     uint256 public withdrawalsPaused;
     
     // Amount of time withdrawals may be paused after a hack.
     uint256 public pauseDuration;
-    
-    // Percent over what was withdrawn last week to reserve. 10 == 1%; 1000 == 100%.
-    uint256 public bufferPercent;
     
     // Address that will receive administration funds from the contract.
     address public beneficiary;
@@ -82,19 +82,11 @@ contract arNXMVault is Ownable {
         nxm = IERC20(_nxm);
         arNxm = IERC20(_arNxm);
         nxmMaster = INxmMaster(_nxmMaster);
-        bufferPercent = 500;
         unstakePercent = 70;
         adminPercent = 200;
+        reservePercent = 100;
         pauseDuration = 7 days;
         beneficiary = msg.sender;
-    }
-
-    function changeBeneficiary(address _newBeneficiary) external onlyOwner {
-        beneficiary = _newBeneficiary;
-    }
-
-    function approveNxmToWNXM() external {
-        _approveNxm(address(wNxm));
     }
     
     /**
@@ -110,8 +102,8 @@ contract arNXMVault is Ownable {
         wNxm.safeTransferFrom(msg.sender, address(this), _wAmount);
         arNxm.mint(msg.sender, arNxmAmount);
         
-        // Deposit does not affect the withdrawals variable.
-        
+        aumTotal = aumTotal.add(_wAmount);
+
         emit Deposit(msg.sender, _wAmount, block.timestamp);
     }
     
@@ -134,7 +126,7 @@ contract arNXMVault is Ownable {
         arNxm.burn(msg.sender, _arAmount);
         wNxm.safeTransfer(msg.sender, wNxmAmount);
         
-        withdrawals = withdrawals.add(wNxmAmount);
+        aumTotal = aumTotal.sub(wNxmAmount);
         
         emit Withdrawal(msg.sender, _arAmount, block.timestamp);
     }
@@ -159,8 +151,7 @@ contract arNXMVault is Ownable {
         
         // Reset variables.
         lastRestake = block.timestamp;
-        withdrawals = 0;
-        
+
         emit Restake(withdrawn, rewards, unstaked, staked, block.timestamp);
     }
     
@@ -184,6 +175,7 @@ contract arNXMVault is Ownable {
         // Find totals of both tokens.
         uint256 totalW = balance.add(stakeDeposit).add(reward);
         uint256 totalAr = arNxm.totalSupply();
+        
         // Find exchange amount of one token, then find exchange amount for full value.
         if(totalW == 0){
             arAmount = _wAmount;
@@ -296,23 +288,35 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
-        uint256 unstakeAmount = stake * unstakePercent / 1000;
+        unstakeAmount = stake * unstakePercent / 1000;
+        
         for (uint256 i = 0; i < protocols.length; i++) {
-          if(_protocolUnstakable(protocols[i])){
+          
+          if (_protocolUnstakable(protocols[i])) {
+            
             amounts.push(unstakeAmount);
             unstakingProtocols.push(protocols[i]);
+          
           }
+          
         }
+        
         uint256 lastId = pool.lastUnstakeRequestId();
         pool.requestUnstake(unstakingProtocols, amounts, lastId);
+        
         delete amounts;
         delete unstakingProtocols;
     }
 
-    function _protocolUnstakable(address _protocol) internal returns(bool) {
+    /**
+     * @dev Check if we can unstake from a certain protocol.
+     * @param _protocol The address of the protocol we're checking.
+    **/
+    function _protocolUnstakable(address _protocol) internal view returns (bool) {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), _protocol);
         uint256 requested = pool.stakerContractPendingUnstakeTotal(address(this), _protocol);
+        
         return stake > requested;
     }
 
@@ -326,18 +330,21 @@ contract arNXMVault is Ownable {
     {
         _approveNxm(_getTokenController());
         uint256 balance = wNxm.balanceOf( address(this) );
-        uint256 toReserve = withdrawals.add( ( withdrawals.mul(bufferPercent).div(1000) ) );
-       
+        uint256 toReserve = aumTotal * reservePercent / 1000;
          
         // If we do need to restake funds...
         if (toReserve < balance) {
+            
             // Determine how much to stake then unwrap wNxm to be able to stake it.
             toStake = balance.sub(toReserve);
             _unwrapWNxm(toStake);
+            
             for (uint256 i = 0; i < protocols.length; i++) amounts.push(toStake);
             IPooledStaking pool = IPooledStaking( _getPool() );
             pool.depositAndStake(toStake, protocols, amounts);
+            
         }
+        
         delete amounts;
     }
     
@@ -404,9 +411,9 @@ contract arNXMVault is Ownable {
     function _getNXM()
       internal
       view
-    returns(address nxm)
+    returns(address nxmAddress)
     {
-        nxm = nxmMaster.tokenAddress();
+        nxmAddress = nxmMaster.tokenAddress();
     }
     
     function _getTokenController()
@@ -439,14 +446,15 @@ contract arNXMVault is Ownable {
     }
     
     /**
-     * @dev Owner may change how much to save in addition to withdrawals from the previous week.
-     * @param _bufferPercent The new buffer percent to change to.
+     * @dev Owner may change how much of the AUM should be saved in reserve each week.
+     * @param _reservePercent The new reserve percent to change to.
     **/
-    function changeBufferPercent(uint256 _bufferPercent)
+    function changeReservePercent(uint256 _reservePercent)
       external
       onlyOwner
     {
-        bufferPercent = _bufferPercent;
+        require(_reservePercent <= 1000);
+        reservePercent = _reservePercent;
     }
     
     /**
@@ -493,6 +501,21 @@ contract arNXMVault is Ownable {
     {
         require(_adminPercent <= 1000);
         adminPercent = _adminPercent;
+    }
+    
+    /**
+     * @dev Change beneficiary of the administration funds.
+     * @param _newBeneficiary Address of the new beneficiary to receive funds.
+    **/
+    function changeBeneficiary(address _newBeneficiary) external onlyOwner {
+        beneficiary = _newBeneficiary;
+    }
+
+    /**
+     * @dev Approve wNXM to transfer NXM from this contract.
+    **/
+    function approveNxmToWNXM() external {
+        _approveNxm(address(wNxm));
     }
 
 }
