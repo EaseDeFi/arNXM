@@ -5,6 +5,7 @@ import '../libraries/SafeERC20.sol';
 import '../interfaces/IWNXM.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
+import '../interfaces/IRewardManager.sol';
 
 /**
  * @title arNXM Vault
@@ -37,6 +38,9 @@ contract arNXMVault is Ownable {
     // Percent of funds to be distributed for administration of the contract. 10 == 1%; 1000 == 100%.
     uint256 public adminPercent;
     
+    // Percent of staking rewards that referrers get.
+    uint256 public referPercent;
+    
     // Timestamp of when the last restake took place--7 days between each.
     uint256 public lastRestake;
     
@@ -59,6 +63,12 @@ contract arNXMVault is Ownable {
     // Nxm Master address.
     INxmMaster public nxmMaster;
     
+    // Reward manager for referrers.
+    IRewardManager public rewardManager;
+    
+    // Referral => referrer
+    mapping (address => address) public referrers;
+    
     event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
     event Withdrawal(address indexed user, uint256 arAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 userReward, uint256 unstaked, uint256 staked, uint256 timestamp);
@@ -73,29 +83,40 @@ contract arNXMVault is Ownable {
                 address _wNxm, 
                 address _arNxm,
                 address _nxm,
-                address _nxmMaster)
+                address _nxmMaster,
+                address _rewardManager)
       public
     {
         for (uint256 i = 0; i < _protocols.length; i++) protocols.push(_protocols[i]);
         
+        Ownable.initialize();
         wNxm = IERC20(_wNxm);
         nxm = IERC20(_nxm);
         arNxm = IERC20(_arNxm);
         nxmMaster = INxmMaster(_nxmMaster);
+        rewardManager = IRewardManager(_rewardManager);
         unstakePercent = 70;
         adminPercent = 200;
         reservePercent = 100;
         pauseDuration = 7 days;
         beneficiary = msg.sender;
+        
+        // Approve to send funds to reward manager.
+        arNxm.approve( _rewardManager, uint256(-1) );
     }
     
     /**
      * @dev Deposit wNxm to get arNxm in return.
      * @param _wAmount The amount of wNxm to stake.
+     * @param _referrer The address that referred this user.
     **/
-    function deposit(uint256 _wAmount)
+    function deposit(uint256 _wAmount, address _referrer)
       external
     {
+        if ( referrers[msg.sender] == address(0) ) {
+            referrers[msg.sender] = _referrer != address(0) ? _referrer : beneficiary;
+        }
+        
         // This amount must be determined before arNxm burn.
         uint256 arNxmAmount = arNxmValue(_wAmount);
 
@@ -103,6 +124,9 @@ contract arNXMVault is Ownable {
         arNxm.mint(msg.sender, arNxmAmount);
         
         aumTotal = aumTotal.add(_wAmount);
+
+        // Increase referrer's balance on referral contract.
+        rewardManager.stake(referrers[msg.sender], _wAmount);
 
         emit Deposit(msg.sender, _wAmount, block.timestamp);
     }
@@ -127,6 +151,9 @@ contract arNXMVault is Ownable {
         wNxm.safeTransfer(msg.sender, wNxmAmount);
         
         aumTotal = aumTotal.sub(wNxmAmount);
+        
+        // Decrease referrer's reward balance.
+        rewardManager.withdraw(referrers[msg.sender], wNxmAmount);
         
         emit Withdrawal(msg.sender, _arAmount, block.timestamp);
     }
@@ -248,20 +275,20 @@ contract arNXMVault is Ownable {
     
     /**
      * @dev Withdraw any available rewards from Nexus.
-     * @return userReward The amount of rewards to be given to users (full reward - admin reward).
+     * @return finalReward The amount of rewards to be given to users (full reward - admin reward - referral reward).
     **/
     function _getRewardsNxm()
       internal
-      returns (uint256 userReward)
+      returns (uint256 finalReward)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         
         // Find current reward, find user reward (transfers reward to admin within this).
         uint256 fullReward = pool.stakerReward( address(this) );
-        userReward = _adminRewardsNxm(fullReward);
+        finalReward = _feeRewardsNxm(fullReward);
         
         pool.withdrawReward( address(this) );
-        lastReward = userReward;
+        lastReward = finalReward;
     }
     
     /**
@@ -269,13 +296,20 @@ contract arNXMVault is Ownable {
      * @param reward Full reward given from this week.
      * @return userReward Reward amount given to users (full reward - admin reward).
     **/
-    function _adminRewardsNxm(uint256 reward)
+    function _feeRewardsNxm(uint256 reward)
       internal
     returns (uint256 userReward)
     {
-        uint256 adminReward = reward.mul(adminPercent).div(1000);
+        // Find both rewards before minting any.
+        uint256 adminReward = arNxmValue( reward.mul(adminPercent).div(1000) );
+        uint256 referReward = arNxmValue( reward.mul(referPercent).div(1000) );
+
+        // Mint to beneificary then this address (to then transfer to rewardManager).
         arNxm.mint(beneficiary, adminReward);
-        userReward = reward.sub(adminReward);
+        arNxm.mint(address(this), referReward);
+        rewardManager.notifyRewardAmount(referReward);
+        
+        userReward = reward.sub(adminReward).sub(referReward);
     }
 
     /**
@@ -293,10 +327,8 @@ contract arNXMVault is Ownable {
         for (uint256 i = 0; i < protocols.length; i++) {
           
           if (_protocolUnstakable(protocols[i])) {
-            
             amounts.push(unstakeAmount);
             unstakingProtocols.push(protocols[i]);
-          
           }
           
         }
@@ -467,6 +499,18 @@ contract arNXMVault is Ownable {
     {
         require(_unstakePercent <= 100);
         unstakePercent = _unstakePercent;
+    }
+    
+    /**
+     * @dev Owner may change the percent of insurance fees referrers receive.
+     * @param _referPercent The percent of fees referrers receive. 50 == 5%.
+    **/
+    function changeReferPercent(uint256 _referPercent)
+      external
+      onlyOwner
+    {
+        require(_referPercent <= 1000, "Cannot give more than 100% of fees.");
+        referPercent = _referPercent;
     }
     
     /**
