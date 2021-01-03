@@ -543,7 +543,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_reservePercent <= 1000);
+        require(_reservePercent <= 1000, "Reserve percent cannot be more than 100%.");
         reservePercent = _reservePercent;
     }
     
@@ -555,7 +555,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_unstakePercent <= 1000);
+        require(_unstakePercent <= 1000, "Unstake percent cannot be more than 100%.");
         unstakePercent = _unstakePercent;
     }
     
@@ -567,7 +567,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_referPercent <= 1000, "Cannot give more than 100% of fees.");
+        require(_referPercent <= 500, "Cannot give referrer more than 50% of rewards.");
         referPercent = _referPercent;
     }
     
@@ -579,7 +579,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_adminPercent <= 1000);
+        require(_adminPercent <= 500, "Cannot give admin more than 50% of rewards.");
         adminPercent = _adminPercent;
     }
 
@@ -602,6 +602,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
+        require(_pauseDuration <= 30 days, "Pause duration cannot be more than 30 days.");
         pauseDuration = _pauseDuration;
     }
     
