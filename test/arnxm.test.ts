@@ -1,5 +1,4 @@
 import { ethers } from "hardhat";
-import { time } from "@openzeppelin/test-helpers";
 import { providers, Contract, Signer, BigNumber } from "ethers";
 import { NexusMutual } from "./NexusMutual";
 import { expect } from "chai";
@@ -12,7 +11,14 @@ async function increase(seconds: number) {
   const signers = await ethers.getSigners();
   const signer = signers[0];
   await (signer.provider as providers.JsonRpcProvider).send("evm_increaseTime", [seconds]);
-  await (signer.provider as providers.JsonRpcProvider).send("evm_mine", []);
+}
+
+async function getTimestamp() {
+  const signers = await ethers.getSigners();
+  const signer = signers[0];
+  let number = await (signer.provider as providers.JsonRpcProvider).getBlockNumber();
+  let block = await (signer.provider as providers.JsonRpcProvider).getBlock(number);
+  return block.timestamp;
 }
 
 const EXCHANGE_TOKEN = ether('10000');
@@ -121,19 +127,30 @@ describe('arnxm', function(){
     });
   });
 
+  // This block used for restake to find next index we can unstake after.
+  async function getIndex() {
+    let index = 0;
+    while (true) {
+      let request = await nxm.pooledStaking.unstakeRequests(index)
+      if (request.next > 0) index = request.next;
+      else break;
+    }
+    return index;
+  }
+
   describe('#restake', function(){
     beforeEach(async function(){
       await wNXM.connect(user).wrap(AMOUNT);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
       await arNXMVault.connect(user).approveNxmToWNXM();
-      await arNXMVault.connect(owner).restake();
+      await arNXMVault.connect(owner).restake(await getIndex());
     });
 
     it('should not be able to restake before 7 days', async function(){
-      await expect(arNXMVault.connect(owner).restake()).to.be.revertedWith("It has not been 7 days since the last restake.")
+      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been 7 days since the last restake.")
       await increase(86400 * 7);
-      await arNXMVault.connect(owner).restake();
+      await arNXMVault.connect(owner).restake(await getIndex());
     });
 
     it('should stake all protocols correctly', async function(){
@@ -154,36 +171,46 @@ describe('arnxm', function(){
     });
 
     it('should withdraw and restake all protocols correctly', async function(){
-      console.log("Last unstake request id 1:")
-      let unstakeId = await nxm.pooledStaking.lastUnstakeRequestId();
-      console.log(unstakeId.toString())
+      await increase(86400 * 7);
+      await arNXMVault.connect(owner).restake(await getIndex());
 
-      console.log("Last unstake request 1:")
-      let request = await nxm.pooledStaking.unstakeRequests(unstakeId);
-      console.log(request.toString());
+      await increase(86400 * 7);
+      await arNXMVault.connect(owner).restake(await getIndex());
 
-      //expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('189'));
+      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
 
       // Process pending unstakes
       await increase(86400 * 90);
       await nxm.pooledStaking.processPendingActions(100);
+      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('189'));
 
-      console.log("Last unstake request id 2:")
-      unstakeId = await nxm.pooledStaking.lastUnstakeRequestId();
-      console.log(unstakeId.toString())
+      await arNXMVault.connect(owner).restake(await getIndex());
 
-      console.log("Last unstake request 2:")
-      request = await nxm.pooledStaking.unstakeRequests(unstakeId);
-      console.log(request.toString());
-
-      await arNXMVault.connect(owner).restake();
-
-      //expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(stake);
+      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('63'));
     });
 
-    // stake, use mockReward to give reward to users, restake, check rewards on arNXMVault and referralRewards. Also withdraw individual referrer in correct amount.
-    it('should reward stakers and referrers correctly', async function(){
+    it('should reward referrers correctly', async function() {
+      await nxm.nxm.connect(owner).transfer(nxm.pooledStaking.address, AMOUNT);
 
+      await increase(86400 * 7);
+      await arNXMVault.connect(owner).restake(await getIndex());
+      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.div(10));
+
+      await nxm.pooledStaking.connect(owner).mockReward(arNXMVault.address, AMOUNT);
+
+      await increase(86400 * 7);
+      await arNXMVault.connect(owner).restake(await getIndex());
+
+      // 10% is kept after restake so even though full amount has doubled, only 200 wNXM is in balance.
+      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.div(10).mul(2));
+      // 5% goes to referrers
+      expect(await arNXM.balanceOf(referralRewards.address)).to.equal(AMOUNT.div(20));
+      
+      await increase(86400);
+      await referralRewards.connect(owner).getReward(ownerAddress);
+      expect(await arNXM.balanceOf(ownerAddress)).to.equal(AMOUNT.div(20));
     });
 
   });
@@ -217,6 +244,36 @@ describe('arnxm', function(){
       await wNXM.connect(user).transfer(arNXMVault.address, AMOUNT);
       expect(await arNXMVault.aum()).to.equal(AMOUNT.mul(2));
     });
+  });
+
+  describe('#pausing', function(){
+
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+
+      let timestamp = await getTimestamp();
+      await nxm.claimsData.connect(owner).setClaimdateTest(1,timestamp);
+      await nxm.claimsData.connect(owner).setClaimStatusTest(1,14);
+      await arNXMVault.connect(user).pauseWithdrawals(1);
+    });
+
+    it('should pause if claim has recently happened', async function(){
+      await expect(arNXMVault.connect(user).withdraw(AMOUNT)).to.be.revertedWith("Withdrawals are temporarily paused.");
+    });
+
+    it('should unpause after 7 days', async function(){
+      await increase(86400 * 7 + 1);
+      await arNXMVault.connect(user).withdraw(AMOUNT);
+    });
+
+    it('should not be able to pause again after 7 days', async function(){
+      await increase(86400 * 7 + 1);
+      await arNXMVault.connect(user).pauseWithdrawals(1);
+      await arNXMVault.connect(user).withdraw(AMOUNT);
+    });
+
   });
 
   describe('#token', function(){

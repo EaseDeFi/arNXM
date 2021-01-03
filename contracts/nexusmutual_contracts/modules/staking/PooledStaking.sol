@@ -925,10 +925,10 @@ contract PooledStaking is MasterAware, IPooledStaking {
   /**
    * @dev Mock reward used by Armor for tests.
   **/
-  function mockReward()
+  function mockReward(address _staker, uint256 _reward)
     public
   {
-    
+    stakers[_staker].reward = _reward;
   }
 
   function _rewardStaker(

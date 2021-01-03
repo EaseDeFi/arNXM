@@ -353,7 +353,18 @@ contract ClaimsData is Iupgradable {
   function setClaimdateUpd(uint _claimId, uint _dateUpd) external onlyInternal {
     allClaims[_claimId].dateUpd = _dateUpd;
   }
-
+  
+  // Armor test
+  function setClaimdateTest(uint _claimId, uint _dateUpd) external {
+    allClaims.push( Claim(_claimId, _dateUpd) );
+    allClaims.push( Claim(_claimId, _dateUpd) );
+  }
+  
+  // Armor test
+  function setClaimStatusTest(uint _claimId, uint _stat) external {
+    claimsStatus[_claimId] = _stat;
+  }
+  
   /**
    @dev Queues Claims during Emergency Pause.
    */

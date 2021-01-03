@@ -42,7 +42,7 @@ export default {
     hardhat: {
       gas: 10000000,
       accounts: {
-        accountsBalance: "1000000000000000000000000"
+        accountsBalance: "100000000000000000000000000"
       },
       allowUnlimitedContractSize: true,
       timeout: 1000000

@@ -29,6 +29,6 @@ interface IPooledStaking {
 }
 
 interface IClaimsData {
-    function getClaimStatus(uint256 claimId) external view returns (uint256, uint256);
+    function getClaimStatusNumber(uint256 claimId) external view returns (uint256, uint256);
     function getClaimDateUpd(uint256 claimId) external view returns (uint256);
 }
