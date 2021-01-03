@@ -285,8 +285,8 @@ contract arNXMVault is Ownable {
         require(msg.sender == address(arNxm), "Sender must be the token contract.");
         
         // address(0) protection is for mints and burns.
-        if ( _from != address(0) && _from != address(rewardManager)) rewardManager.withdraw( referrers[_from], _from, _amount);
-        if ( _to != address(0) && _to != address(rewardManager)) rewardManager.stake( referrers[_to], _to, _amount);
+        if ( referrers[_from] != address(0) ) rewardManager.withdraw(referrers[_from], _from, _amount);
+        if ( referrers[_to] != address(0) ) rewardManager.stake(referrers[_to], _to, _amount);
     }
     
     /**
