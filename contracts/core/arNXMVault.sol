@@ -10,18 +10,20 @@ import '../interfaces/IRewardManager.sol';
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM while maintaining your liquidity.
- * @author Armor.fi -- Robert M.C. Forster
+ * @author Armor.fi -- Robert M.C. Forster, Taek Lee
 **/
 contract arNXMVault is Ownable {
     
     using SafeMath for uint;
     using SafeERC20 for IERC20;
     
+    uint256 constant private DENOMINATOR = 1000;
+    
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
     
     // Total amount of assets under management.
-    uint256 public aumTotal;
+    //uint256 public aumTotal;
     
     // Percent of the AUM total that we should keep in reserve. 10 == 1%; 1000 == 100%.
     uint256 public reservePercent;
@@ -78,8 +80,9 @@ contract arNXMVault is Ownable {
      * @param _wNxm Address of the wNxm contract.
      * @param _arNxm Address of the arNxm contract.
      * @param _nxmMaster Address of Nexus' master address (to fetch others).
+     * @param _rewardManager Address of the ReferralRewards smart contract.
     **/
-    constructor(address[] memory _protocols, 
+    function initialize(address[] memory _protocols, 
                 address _wNxm, 
                 address _arNxm,
                 address _nxm,
@@ -87,16 +90,19 @@ contract arNXMVault is Ownable {
                 address _rewardManager)
       public
     {
+        require(address(arNxm) == address(0), "Contract has already been initialized.");
+        
         for (uint256 i = 0; i < _protocols.length; i++) protocols.push(_protocols[i]);
         
-        Ownable.initialize();
+        Ownable.initializeOwnable();
         wNxm = IERC20(_wNxm);
         nxm = IERC20(_nxm);
         arNxm = IERC20(_arNxm);
         nxmMaster = INxmMaster(_nxmMaster);
         rewardManager = IRewardManager(_rewardManager);
         unstakePercent = 70;
-        adminPercent = 200;
+        adminPercent = 0;
+        referPercent = 50;
         reservePercent = 100;
         pauseDuration = 7 days;
         beneficiary = msg.sender;
@@ -121,12 +127,10 @@ contract arNXMVault is Ownable {
         uint256 arNxmAmount = arNxmValue(_wAmount);
 
         wNxm.safeTransferFrom(msg.sender, address(this), _wAmount);
+        // Mint also increases sender's referral balance through alertTransfer.
         arNxm.mint(msg.sender, arNxmAmount);
         
-        aumTotal = aumTotal.add(_wAmount);
-
-        // Increase referrer's balance on referral contract.
-        rewardManager.stake(referrers[msg.sender], _wAmount);
+        //aumTotal = aumTotal.add(_wAmount);
 
         emit Deposit(msg.sender, _wAmount, block.timestamp);
     }
@@ -139,21 +143,15 @@ contract arNXMVault is Ownable {
       external
     {
         require(block.timestamp.sub(withdrawalsPaused) > pauseDuration, "Withdrawals are temporarily paused.");
-       
-        IPooledStaking pool = IPooledStaking(_getPool()); 
-        uint256 maxWithdrawable = pool.stakerMaxWithdrawable(address(this));
-        pool.withdraw(maxWithdrawable);
-        _wrapNxm();
+
         // This amount must be determined before arNxm burn.
         uint256 wNxmAmount = wNxmValue(_arAmount);
         
+        // Burn also decreases sender's referral balance through alertTransfer.
         arNxm.burn(msg.sender, _arAmount);
         wNxm.safeTransfer(msg.sender, wNxmAmount);
         
-        aumTotal = aumTotal.sub(wNxmAmount);
-        
-        // Decrease referrer's reward balance.
-        rewardManager.withdraw(referrers[msg.sender], wNxmAmount);
+        //aumTotal = aumTotal.sub(wNxmAmount);
         
         emit Withdrawal(msg.sender, _arAmount, block.timestamp);
     }
@@ -167,11 +165,11 @@ contract arNXMVault is Ownable {
         // Check that this is only called once per week.
         require(lastRestake.add(7 days) <= block.timestamp, "It has not been 7 days since the last restake.");
         
-        // All Nexus function.
+        // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
         uint256 rewards = _getRewardsNxm();
-        uint256 unstaked = _unstakeNxm();
         uint256 staked = _stakeNxm();
+        uint256 unstaked = _unstakeNxm();
         
         // Keep wNXM in the reserve so users can withdraw.
         _wrapNxm();
@@ -204,7 +202,7 @@ contract arNXMVault is Ownable {
         uint256 totalAr = arNxm.totalSupply();
         
         // Find exchange amount of one token, then find exchange amount for full value.
-        if(totalW == 0){
+        if (totalW == 0) {
             arAmount = _wAmount;
         } else {
             uint256 oneAmount = ( totalAr.mul(1e18) ).div(totalW);
@@ -239,6 +237,18 @@ contract arNXMVault is Ownable {
     }
     
     /**
+     * @dev Used to determine total Assets Under Management.
+    **/
+    function aum()
+      public
+      view
+    returns (uint256 aumTotal)
+    {
+        uint256 supply = arNxm.totalSupply();
+        if (supply > 0) aumTotal = wNxmValue(supply);
+    }
+    
+    /**
      * @dev Anyone may call this function to pause withdrawals for a certain amount of time.
      *      We check Nexus contracts for a recent accepted claim, then can pause to avoid further withdrawals.
      * @param _claimId The ID of the cover that has been accepted for a confirmed hack.
@@ -260,6 +270,23 @@ contract arNXMVault is Ownable {
     }
     
     /**
+     * @dev When arNXM tokens are transferred, the referrer stakes must be adjusted on RewardManager.
+     *      This is taken care of by a "_beforeTokenTransfer" function on the arNXM ERC20.
+     * @param _from The user that tokens are being transferred from.
+     * @param _to The user that tokens are being transferred to.
+     * @param _amount The amount of tokens that are being transferred.
+    **/
+    function alertTransfer(address _from, address _to, uint256 _amount)
+      external
+    {
+        require(msg.sender == address(arNxm), "Sender must be the token contract.");
+        
+        // address(0) protection is for mints and burns.
+        if ( _from != address(0) ) rewardManager.withdraw( referrers[_from], _from, _amount);
+        if ( _to != address(0) ) rewardManager.stake( referrers[_to], _to, _amount);
+    }
+    
+    /**
      * @dev Withdraw any wNxm we can from the staking pool.
      * @return amount The amount of funds that are being withdrawn.
     **/
@@ -268,7 +295,6 @@ contract arNXMVault is Ownable {
       returns (uint256 amount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-        
         amount = pool.stakerMaxWithdrawable( address(this) );
         pool.withdraw(amount);
     }
@@ -301,13 +327,15 @@ contract arNXMVault is Ownable {
     returns (uint256 userReward)
     {
         // Find both rewards before minting any.
-        uint256 adminReward = arNxmValue( reward.mul(adminPercent).div(1000) );
-        uint256 referReward = arNxmValue( reward.mul(referPercent).div(1000) );
+        uint256 adminReward = arNxmValue( reward.mul(adminPercent).div(DENOMINATOR) );
+        uint256 referReward = arNxmValue( reward.mul(referPercent).div(DENOMINATOR) );
 
-        // Mint to beneificary then this address (to then transfer to rewardManager).
-        arNxm.mint(beneficiary, adminReward);
-        arNxm.mint(address(this), referReward);
-        rewardManager.notifyRewardAmount(referReward);
+        // Mint to beneficary then this address (to then transfer to rewardManager).
+        if (adminReward > 0) arNxm.mint(beneficiary, adminReward);
+        if (referReward > 0) {
+            arNxm.mint(address(this), referReward);
+            rewardManager.notifyRewardAmount(referReward);
+        }
         
         userReward = reward.sub(adminReward).sub(referReward);
     }
@@ -322,14 +350,15 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
-        unstakeAmount = stake * unstakePercent / 1000;
+        unstakeAmount = stake * unstakePercent / DENOMINATOR;
         
         for (uint256 i = 0; i < protocols.length; i++) {
-          
-          if (_protocolUnstakable(protocols[i])) {
-            amounts.push(unstakeAmount);
-            unstakingProtocols.push(protocols[i]);
-          }
+            uint256 indUnstakeAmount = _protocolUnstakeable(protocols[i], unstakeAmount);
+              
+            if (indUnstakeAmount > 0) {
+                amounts.push(indUnstakeAmount);
+                unstakingProtocols.push(protocols[i]);
+            }
           
         }
         
@@ -341,15 +370,21 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev Check if we can unstake from a certain protocol.
+     * @dev Returns the amount we can unstake (if we can't unstake the full amount desired).
      * @param _protocol The address of the protocol we're checking.
+     * @param _unstakeAmount Amount we want to unstake.
     **/
-    function _protocolUnstakable(address _protocol) internal view returns (bool) {
+    function _protocolUnstakeable(address _protocol, uint256 _unstakeAmount) 
+      internal 
+      view
+    returns (uint256) {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), _protocol);
         uint256 requested = pool.stakerContractPendingUnstakeTotal(address(this), _protocol);
+        uint256 available = stake - requested;
         
-        return stake > requested;
+        // available <= stake is underflow protection.
+        return available >= _unstakeAmount && available <= stake ? _unstakeAmount : available;
     }
 
     /**
@@ -362,7 +397,7 @@ contract arNXMVault is Ownable {
     {
         _approveNxm(_getTokenController());
         uint256 balance = wNxm.balanceOf( address(this) );
-        uint256 toReserve = aumTotal * reservePercent / 1000;
+        uint256 toReserve = aum() * reservePercent / DENOMINATOR;
          
         // If we do need to restake funds...
         if (toReserve < balance) {

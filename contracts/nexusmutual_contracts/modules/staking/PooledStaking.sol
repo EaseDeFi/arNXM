@@ -921,6 +921,15 @@ contract PooledStaking is MasterAware, IPooledStaking {
 
     return (true, iterationsLeft);
   }
+  
+  /**
+   * @dev Mock reward used by Armor for tests.
+  **/
+  function mockReward()
+    public
+  {
+    
+  }
 
   function _rewardStaker(
     address stakerAddress, address contractAddress, uint totalRewardAmount, uint totalStakedOnContract

@@ -1,17 +1,28 @@
 pragma solidity ^0.6.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../general/Ownable.sol";
+import "../interfaces/IarNXMVault.sol";
 
-contract ArNXMToken is ERC20, Ownable {
+contract ArNXMToken is ERC20 {
 
-    constructor() ERC20("Armor NXM", "arNXM") public {
-        _mint( msg.sender, 300000 * (10 ** 18) );
+    // Vault is needed so that we can adjust referrer balances when a token is transferred.
+    IarNXMVault public arNXMVault;
+
+    constructor(address _arNXMVault) ERC20("Armor NXM", "arNXM") public {
+        arNXMVault = IarNXMVault(_arNXMVault);
+    }
+    
+    /**
+     * @dev Only arNXMVault is allowed to mint and burn tokens.
+    **/
+    modifier onlyArNxm {
+        require(msg.sender == address(arNXMVault), "Sender is not arNXM Vault.");
+        _;
     }
     
     function mint(address _to, uint256 _amount)
       external
-// removed temporarily      onlyOwner
+      onlyArNxm
     returns (bool)
     {
         _mint(_to, _amount);
@@ -20,11 +31,17 @@ contract ArNXMToken is ERC20, Ownable {
     
     function burn(address _from, uint256 _amount)
       external
-//      onlyOwner
+      onlyArNxm
     returns (bool)
     {
         _burn(_from, _amount);
         return true;
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual override {
+        super._beforeTokenTransfer(from, to, amount);
+        
+        arNXMVault.alertTransfer(from, to, amount);
     }
 
 }
