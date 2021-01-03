@@ -22,9 +22,6 @@ contract arNXMVault is Ownable {
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
     
-    // Total amount of assets under management.
-    //uint256 public aumTotal;
-    
     // Percent of the AUM total that we should keep in reserve. 10 == 1%; 1000 == 100%.
     uint256 public reservePercent;
     
@@ -129,7 +126,7 @@ contract arNXMVault is Ownable {
             referrers[msg.sender] = _referrer != address(0) ? _referrer : beneficiary;
         }
         
-        // This amount must be determined before arNxm burn.
+        // This amount must be determined before arNxm mint.
         uint256 arNxmAmount = arNxmValue(_wAmount);
 
         wNxm.safeTransferFrom(msg.sender, address(this), _wAmount);
@@ -241,6 +238,7 @@ contract arNXMVault is Ownable {
     
     /**
      * @dev Used to determine total Assets Under Management.
+     * @return aumTotal Full amount of assets under management (wNXM balance + stake deposit).
     **/
     function aum()
       public
@@ -290,6 +288,13 @@ contract arNXMVault is Ownable {
     }
     
     /**
+     * @dev Approve wNXM to transfer NXM from this contract.
+    **/
+    function approveNxmToWNXM() external {
+        _approveNxm(address(wNxm));
+    }
+
+    /**
      * @dev Withdraw any wNxm we can from the staking pool.
      * @return amount The amount of funds that are being withdrawn.
     **/
@@ -334,7 +339,9 @@ contract arNXMVault is Ownable {
         uint256 referReward = arNxmValue( reward.mul(referPercent).div(DENOMINATOR) );
 
         // Mint to beneficary then this address (to then transfer to rewardManager).
-        if (adminReward > 0) arNxm.mint(beneficiary, adminReward);
+        if (adminReward > 0) {
+          arNxm.mint(beneficiary, adminReward);
+        }
         if (referReward > 0) {
             arNxm.mint(address(this), referReward);
             rewardManager.notifyRewardAmount(referReward);
@@ -345,6 +352,7 @@ contract arNXMVault is Ownable {
 
     /**
      * @dev Unstake an amount from each protocol on Nxm (takes 90 days to unstake).
+     * @param lastId The ID of the last unstake request on Nexus Mutual (needed for unstaking).
      * @return unstakeAmount The amount of each token that we're unstaking.
     **/
     function _unstakeNxm(uint256 lastId)
@@ -365,8 +373,6 @@ contract arNXMVault is Ownable {
           
         }
         
-        // This isn't working from Nexus. When pending actions are cleared, it continues from a blank unstake request which you cannot add to.
-        // uint256 lastId = pool.lastUnstakeRequestId();
         pool.requestUnstake(unstakingProtocols, amounts, lastId);
         
         delete amounts;
@@ -377,6 +383,7 @@ contract arNXMVault is Ownable {
      * @dev Returns the amount we can unstake (if we can't unstake the full amount desired).
      * @param _protocol The address of the protocol we're checking.
      * @param _unstakeAmount Amount we want to unstake.
+     * @return The amount of funds that can be unstaked from this protocol if not the full amount desired.
     **/
     function _protocolUnstakeable(address _protocol, uint256 _unstakeAmount) 
       internal 
@@ -397,7 +404,7 @@ contract arNXMVault is Ownable {
     **/
     function _stakeNxm()
       internal
-      returns (uint256 toStake)
+    returns (uint256 toStake)
     {
         _approveNxm(_getTokenController());
         uint256 balance = wNxm.balanceOf( address(this) );
@@ -437,7 +444,7 @@ contract arNXMVault is Ownable {
         
         // Full reward is added to the balance if it's been more than the disbursement duration.
         if (timeElapsed >= duration) {
-            
+
             reward = lastReward;
         
         // Otherwise, disburse amounts linearly over duration.
@@ -483,6 +490,10 @@ contract arNXMVault is Ownable {
         pool = nxmMaster.getLatestAddress("PS");
     }
 
+    /**
+     * @dev Get the current NXM token address from Nexus Mutual.
+     * @return nxmAddress Address of the NXM token.
+    **/
     function _getNXM()
       internal
       view
@@ -491,6 +502,10 @@ contract arNXMVault is Ownable {
         nxmAddress = nxmMaster.tokenAddress();
     }
     
+    /**
+     * @dev Get the current NXM token controller (for NXM actions) from Nexus Mutual.
+     * @return controller Address of the token controller.
+    **/
     function _getTokenController()
       internal
       view
@@ -540,7 +555,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_unstakePercent <= 100);
+        require(_unstakePercent <= 1000);
         unstakePercent = _unstakePercent;
     }
     
@@ -556,6 +571,18 @@ contract arNXMVault is Ownable {
         referPercent = _referPercent;
     }
     
+    /**
+     * @dev Change the percent of rewards that are given for administration of the contract.
+     * @param _adminPercent The percent of rewards to be given for administration (10 == 1%, 1000 == 100%)
+    **/
+    function changeAdminPercent(uint256 _adminPercent)
+      external
+      onlyOwner
+    {
+        require(_adminPercent <= 1000);
+        adminPercent = _adminPercent;
+    }
+
     /**
      * @dev Owner may change protocols that we stake for.
      * @param _protocols New list of protocols to stake for.
@@ -579,30 +606,14 @@ contract arNXMVault is Ownable {
     }
     
     /**
-     * @dev Change the percent of rewards that are given for administration of the contract.
-     * @param _adminPercent The percent of rewards to be given for administration (10 == 1%, 1000 == 100%)
-    **/
-    function changeAdminPercent(uint256 _adminPercent)
-      external
-      onlyOwner
-    {
-        require(_adminPercent <= 1000);
-        adminPercent = _adminPercent;
-    }
-    
-    /**
      * @dev Change beneficiary of the administration funds.
      * @param _newBeneficiary Address of the new beneficiary to receive funds.
     **/
-    function changeBeneficiary(address _newBeneficiary) external onlyOwner {
+    function changeBeneficiary(address _newBeneficiary) 
+      external 
+      onlyOwner 
+    {
         beneficiary = _newBeneficiary;
-    }
-
-    /**
-     * @dev Approve wNXM to transfer NXM from this contract.
-    **/
-    function approveNxmToWNXM() external {
-        _approveNxm(address(wNxm));
     }
 
 }
