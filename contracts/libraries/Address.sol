@@ -2,6 +2,7 @@ pragma solidity ^0.6.6;
 
 /**
  * @dev Collection of functions related to the address type
+ * SPDX-License-Identifier: MIT
  */
 library Address {
     /**

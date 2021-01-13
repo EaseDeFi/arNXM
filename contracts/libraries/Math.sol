@@ -2,6 +2,7 @@ pragma solidity ^0.6.6;
 
 /**
  * @dev Standard math utilities missing in the Solidity language.
+ *  SPDX-License-Identifier: MIT
  */
 library Math {
     /**

@@ -9,8 +9,9 @@ import '../interfaces/IRewardManager.sol';
 
 /**
  * @title arNXM Vault
- * @dev Vault to stake wNXM while maintaining your liquidity.
+ * @dev Vault to stake wNXM in Nexus Mutual while maintaining your liquidity.
  * @author Armor.fi -- Robert M.C. Forster, Taek Lee
+ * SPDX-License-Identifier: (c) Armor.Fi DAO, 2021
 **/
 contract arNXMVault is Ownable {
     
@@ -18,6 +19,9 @@ contract arNXMVault is Ownable {
     using SafeERC20 for IERC20;
     
     uint256 constant private DENOMINATOR = 1000;
+    
+    // Amount of time between 
+    uint256 public restakePeriod;
     
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
@@ -52,6 +56,7 @@ contract arNXMVault is Ownable {
     // Amount to unstake each time.
     uint256[] private amounts;
     
+    // Protocols being unstaked each time restake occurs.
     address[] private unstakingProtocols;
 
     // Nxm tokens.
@@ -69,8 +74,8 @@ contract arNXMVault is Ownable {
     mapping (address => address) public referrers;
     
     event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
-    event Withdrawal(address indexed user, uint256 arAmount, uint256 timestamp);
-    event Restake(uint256 withdrawn, uint256 userReward, uint256 unstaked, uint256 staked, uint256 timestamp);
+    event Withdrawal(address indexed user, uint256 wAmount, uint256 timestamp);
+    event Restake(uint256 withdrawn, uint256 userReward, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
     
     // Avoid composability issues for liquidation.
     modifier notContract {
@@ -107,8 +112,9 @@ contract arNXMVault is Ownable {
         adminPercent = 0;
         referPercent = 50;
         reservePercent = 100;
-        pauseDuration = 7 days;
+        pauseDuration = 10 days;
         beneficiary = msg.sender;
+        restakePeriod = 6 days;
         
         // Approve to send funds to reward manager.
         arNxm.approve( _rewardManager, uint256(-1) );
@@ -152,7 +158,7 @@ contract arNXMVault is Ownable {
         arNxm.burn(msg.sender, _arAmount);
         wNxm.safeTransfer(msg.sender, wNxmAmount);
         
-        emit Withdrawal(msg.sender, _arAmount, block.timestamp);
+        emit Withdrawal(msg.sender, wNxmAmount, block.timestamp);
     }
 
     /**
@@ -164,7 +170,7 @@ contract arNXMVault is Ownable {
       notContract
     {
         // Check that this is only called once per week.
-        require(lastRestake.add(7 days) <= block.timestamp, "It has not been 7 days since the last restake.");
+        require(lastRestake.add(restakePeriod) <= block.timestamp, "It has not been 7 days since the last restake.");
         
         // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
@@ -177,7 +183,7 @@ contract arNXMVault is Ownable {
         // Reset variables.
         lastRestake = block.timestamp;
 
-        emit Restake(withdrawn, rewards, unstaked, staked, block.timestamp);
+        emit Restake(withdrawn, rewards, unstaked, staked, aum(), block.timestamp);
     }
     
     /**
@@ -282,7 +288,7 @@ contract arNXMVault is Ownable {
     {
         require(msg.sender == address(arNxm), "Sender must be the token contract.");
         
-        // address(0) protection is for mints and burns.
+        // address(0) means the contract or EOA has not interacted directly with arNXM Vault.
         if ( referrers[_from] != address(0) ) rewardManager.withdraw(referrers[_from], _from, _amount);
         if ( referrers[_to] != address(0) ) rewardManager.stake(referrers[_to], _to, _amount);
     }
@@ -592,6 +598,18 @@ contract arNXMVault is Ownable {
       onlyOwner
     {
         protocols = _protocols;
+    }
+    
+    /**
+     * @dev Owner may change the amount of time required to be waited between restaking.
+     * @param _restakePeriod Amount of time required between restakes (starts at 6 days or 86400 * 6).
+    **/
+    function changeRestakePeriod(uint256 _restakePeriod)
+      external
+      onlyOwner
+    {
+        require(_restakePeriod <= 30 days, "Restake period cannot be more than 30 days.");
+        restakePeriod = _restakePeriod;
     }
     
     /**

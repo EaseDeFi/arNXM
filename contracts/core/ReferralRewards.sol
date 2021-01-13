@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-
 pragma solidity ^0.6.6;
 
 import '../general/Ownable.sol';
@@ -10,37 +8,13 @@ import '../libraries/SafeMath.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/IRewardManager.sol';
 
-
-/**
-* MIT License
-* ===========
-*
-* Copyright (c) 2020 Synthetix
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-*/
-
 /**
  * @dev This contract is used to distribute rewards to referrers of users of the arNXMVault contract.
  *      It exists because we want the reward to be taken from rewards gained from staking, and those
  *      are not rewarded on an individual basis but to the arNXMVault contract as a whole. This means
  *      we can only reward the referrers as a pool as well, so we're using the SNX scheme to 
  *      reward a group of referrers all at once.
+ *  SPDX-License-Identifier: (c) Armor.Fi, 2021
 **/
 contract ReferralRewards is BalanceWrapper, Ownable, IRewardManager {
     using SafeERC20 for IERC20;

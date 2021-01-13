@@ -5,6 +5,7 @@ pragma solidity ^0.6.6;
  * @dev Unsigned math operations with safety checks that revert on error
  * 
  * @dev Default OpenZeppelin
+ * SPDX-License-Identifier: MIT
  */
 library SafeMath {
     /**
