@@ -33,10 +33,10 @@ contract ReferralRewards is BalanceWrapper, Ownable, IRewardManager {
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
 
-    event RewardAdded(uint256 reward);
-    event BalanceAdded(address indexed user, address indexed referral, uint256 amount);
-    event BalanceWithdrawn(address indexed user, address indexed referral, uint256 amount);
-    event RewardPaid(address indexed user, uint256 reward);
+    event RewardAdded(uint256 reward, uint256 timestamp);
+    event BalanceAdded(address indexed user, address indexed referral, uint256 amount, uint256 timestamp);
+    event BalanceWithdrawn(address indexed user, address indexed referral, uint256 amount, uint256 timestamp);
+    event RewardPaid(address indexed user, uint256 reward, uint256 timestamp);
 
     modifier updateReward(address account) {
         rewardPerTokenStored = rewardPerToken();
@@ -92,12 +92,13 @@ contract ReferralRewards is BalanceWrapper, Ownable, IRewardManager {
     // stake visibility is public as overriding LPTokenWrapper's stake() function
     function stake(address user, address referral, uint256 amount) external override onlyStakeController updateReward(user) {
         _addStake(user, amount);
-        emit BalanceAdded(user, referral, amount);
+        emit BalanceAdded(user, referral, amount, block.timestamp);
     }
 
     function withdraw(address user, address referral, uint256 amount) public override onlyStakeController updateReward(user) {
+        amount = amount <= balanceOf(user) ? amount : balanceOf(user);
         _removeStake(user, amount);
-        emit BalanceWithdrawn(user, referral, amount);
+        emit BalanceWithdrawn(user, referral, amount, block.timestamp);
     }
 
     function getReward(address payable user) public override updateReward(user) {
@@ -108,7 +109,7 @@ contract ReferralRewards is BalanceWrapper, Ownable, IRewardManager {
             if ( address(rewardToken) == address(0) ) user.transfer(reward);
             else rewardToken.safeTransfer(user, reward);
             
-            emit RewardPaid(user, reward);
+            emit RewardPaid(user, reward, block.timestamp);
         }
     }
 
@@ -137,6 +138,6 @@ contract ReferralRewards is BalanceWrapper, Ownable, IRewardManager {
         }
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp.add(DURATION);
-        emit RewardAdded(reward);
+        emit RewardAdded(reward, block.timestamp);
     }
 }
