@@ -13,3 +13,9 @@ The arNXM Vault also includes referrals. Our frontend records affiliates who lin
 <br>
 <br>
 If a claim is successful on Nexus mutual, the arNXM Vault is able to be paused for 7 days. This is because there is a known risk (that we are working on alleviating with further development on the Armor ecosystem) where, when a hack happens, users can immediately withdraw their funds from the vault without losing any wNXM that Nexus Mutual may take from the vault to repay insured users. This amount of loss is limited to what is kept in reserve and absorbed by users who are not fast enough to withdraw current reserve funds after a hack. The pause function is an attempt to further limit the amount that can be lost by users who do not manage to withdraw by disallowing withdrawals once a claim is made, although this will still be a bit of time after the hack happens so the initial run will still happen.
+
+## Testing
+
+1. Clone this repo
+2. `npm install --save-dev`
+3. `npx hardhat test`
