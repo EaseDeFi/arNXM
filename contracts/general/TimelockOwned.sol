@@ -29,6 +29,12 @@ contract TimelockOwned is Ownable {
     event ProposalSubmitted(uint256 id, address target, uint256 value, bytes data, uint256 timestamp, uint256 execTimestamp);
     event ProposalExecuted(uint256 id, address target, uint256 value, bytes data, uint256 timestamp);
 
+    constructor()
+      public
+    {
+        Ownable.initializeOwnable();
+    }
+
     /**
      * @dev External execution.
     **/
