@@ -16,6 +16,6 @@ If a claim is successful on Nexus mutual, the arNXM Vault is able to be paused f
 
 ## Testing
 
-1. Clone this repo
+1. `git clone https://github.com/ArmorFi/arNXM.git`
 2. `npm install --save-dev`
 3. `npx hardhat test`
