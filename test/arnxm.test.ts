@@ -148,8 +148,8 @@ describe('arnxm', function(){
     });
 
     it('should not be able to restake before 7 days', async function(){
-      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been 7 days since the last restake.")
-      await increase(86400 * 7);
+      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been enough time since the last restake.")
+      await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
     });
 
@@ -163,7 +163,7 @@ describe('arnxm', function(){
 
     it('should unstake all protocols correctly', async function(){
       // Sorta complicated way to do it but the most clear without hardcoding (divided by 10 multiplied by 9 == 90%, divided by 100 multiplied by 7 == 7% of 90%).
-      let unstake = AMOUNT.div(10).mul(9).div(100).mul(7);
+      let unstake = AMOUNT.div(10).mul(9).div(100).mul(10);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstake);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstake);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstake);
@@ -171,46 +171,46 @@ describe('arnxm', function(){
     });
 
     it('should withdraw and restake all protocols correctly', async function(){
-      await increase(86400 * 7);
+      await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
 
-      await increase(86400 * 7);
+      await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
 
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('189'));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('270'));
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
 
       // Process pending unstakes
       await increase(86400 * 90);
       await nxm.pooledStaking.processPendingActions(100);
-      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('189'));
+      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('270'));
 
       await arNXMVault.connect(owner).restake(await getIndex());
 
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('63'));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('90'));
     });
 
     it('should reward referrers correctly', async function() {
       await nxm.nxm.connect(owner).transfer(nxm.pooledStaking.address, AMOUNT);
 
-      await increase(86400 * 7);
+      await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
       expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.div(10));
 
       await nxm.pooledStaking.connect(owner).mockReward(arNXMVault.address, AMOUNT);
 
-      await increase(86400 * 7);
+      await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
 
       // 10% is kept after restake so even though full amount has doubled, only 200 wNXM is in balance.
       expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.div(10).mul(2));
-      // 5% goes to referrers
-      expect(await arNXM.balanceOf(referralRewards.address)).to.equal(AMOUNT.div(20));
+      // 2.5% goes to referrers
+      expect(await arNXM.balanceOf(referralRewards.address)).to.equal(AMOUNT.div(40));
       
       await increase(86400);
       await referralRewards.connect(owner).getReward(ownerAddress);
-      expect(await arNXM.balanceOf(ownerAddress)).to.equal(AMOUNT.div(20));
+      expect(await arNXM.balanceOf(ownerAddress)).to.equal(AMOUNT.div(40));
     });
 
   });
@@ -263,13 +263,13 @@ describe('arnxm', function(){
       await expect(arNXMVault.connect(user).withdraw(AMOUNT)).to.be.revertedWith("Withdrawals are temporarily paused.");
     });
 
-    it('should unpause after 7 days', async function(){
-      await increase(86400 * 7 + 1);
+    it('should unpause after 10 days', async function(){
+      await increase(86400 * 10 + 1);
       await arNXMVault.connect(user).withdraw(AMOUNT);
     });
 
-    it('should not be able to pause again after 7 days', async function(){
-      await increase(86400 * 7 + 1);
+    it('should not be able to pause again after 10 days', async function(){
+      await increase(86400 * 10 + 1);
       await arNXMVault.connect(user).pauseWithdrawals(1);
       await arNXMVault.connect(user).withdraw(AMOUNT);
     });
