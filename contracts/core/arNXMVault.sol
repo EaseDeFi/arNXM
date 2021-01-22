@@ -23,6 +23,9 @@ contract arNXMVault is Ownable {
     // Amount of time between 
     uint256 public restakePeriod;
     
+    // Amount of time that rewards are distributed over.
+    uint256 public rewardDuration;
+    
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
     
@@ -108,13 +111,14 @@ contract arNXMVault is Ownable {
         arNxm = IERC20(_arNxm);
         nxmMaster = INxmMaster(_nxmMaster);
         rewardManager = IRewardManager(_rewardManager);
-        unstakePercent = 70;
+        unstakePercent = 100;
         adminPercent = 0;
-        referPercent = 50;
+        referPercent = 25;
         reservePercent = 100;
         pauseDuration = 10 days;
         beneficiary = msg.sender;
-        restakePeriod = 6 days;
+        restakePeriod = 3 days;
+        rewardDuration = 9 days;
         
         // Approve to send funds to reward manager.
         arNxm.approve( _rewardManager, uint256(-1) );
@@ -368,6 +372,8 @@ contract arNXMVault is Ownable {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
         unstakeAmount = stake * unstakePercent / DENOMINATOR;
+        // Can't unstake less than 20 NXM.
+        if (unstakeAmount < 20 ether) return 0;
         
         for (uint256 i = 0; i < protocols.length; i++) {
             uint256 indUnstakeAmount = _protocolUnstakeable(protocols[i], unstakeAmount);
@@ -420,8 +426,11 @@ contract arNXMVault is Ownable {
         if (toReserve < balance) {
 
             IPooledStaking pool = IPooledStaking( _getPool() );
-            // Determine how much to stake then unwrap wNxm to be able to stake it.
+            
+            // Determine how much to stake then unwrap wNxm to be able to stake it. Can't stake less than 20 NXM.
             toStake = balance.sub(toReserve);
+            if (toStake < 20 ether) return 0;
+            
             _unwrapWNxm(toStake);
             
             for (uint256 i = 0; i < protocols.length; i++) {
@@ -430,10 +439,10 @@ contract arNXMVault is Ownable {
             }
 
             pool.depositAndStake(toStake, protocols, amounts);
+            delete amounts;
             
         }
         
-        delete amounts;
     }
     
     /**
@@ -445,7 +454,7 @@ contract arNXMVault is Ownable {
       view
     returns (uint256 reward)
     {
-        uint256 duration = 7 days;
+        uint256 duration = rewardDuration;
         uint256 timeElapsed = block.timestamp.sub(lastRestake);
         
         // Full reward is added to the balance if it's been more than the disbursement duration.
@@ -610,6 +619,18 @@ contract arNXMVault is Ownable {
     {
         require(_restakePeriod <= 30 days, "Restake period cannot be more than 30 days.");
         restakePeriod = _restakePeriod;
+    }
+    
+    /**
+     * @dev Owner may change the amount of time it takes to distribute rewards from Nexus.
+     * @param _rewardDuration The amount of time it takes to fully distribute rewards.
+    **/
+    function changeRewardDuration(uint256 _rewardDuration)
+      external
+      onlyOwner
+    {
+        require(_rewardDuration <= 30 days, "Restake period cannot be more than 30 days.");
+        rewardDuration = _rewardDuration;
     }
     
     /**
