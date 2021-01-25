@@ -33,7 +33,7 @@ Multisig Admin:         0x1f28eD9D4792a567DaD779235c2b766Ab84D8E33<br>
 Timelock Owned:         0x1337DEF11D788e62A253feA846A505EE1b57623f<br>
 Armor token:            0x1337DEF16F9B486fAEd0293eb623Dc8395dFE46a<br>
 FarmController:         0x1337DEF159da6F97dB7c4D0E257dc689837b9E70<br>
-FarmController Master:  0x0Bdb7976c34aB05E5a9031F258B8956f68ee29cf<br><br>
+FarmController Master:  0x0Bdb7976c34aB05E5a9031F258B8956f68ee29cf<br>
 
 arNXM:ETH Uni:      0x24ae7bdf4a9dee4d409503ffcfd5bc694e2c8a12<br>
 arNXM:ETH Sushi:    0xcd1f8cda8be6a8c306a5b0ee759bad46a6f60cad<br>
