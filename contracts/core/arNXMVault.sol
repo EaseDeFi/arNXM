@@ -140,6 +140,16 @@ contract arNXMVault is Ownable {
         tokens[0] = token;
         IShieldMining(shieldMining).claimRewards(protocols, sponsors, tokens);
     }
+
+    /**
+     * @dev rescue tokens locked in contract
+     * @param token address of token to withdraw
+     */
+    function rescueToken(address token) external onlyOwner {
+        require(token != address(nxm) && token != address(wNxm) && token != address(arNxm), "Cannot rescue nxm based tokens");
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(msg.sender, balance);
+    }
     
     /**
      * @dev Deposit wNxm to get arNxm in return.
