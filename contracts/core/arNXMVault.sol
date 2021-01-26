@@ -127,22 +127,6 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev claim rewards from shield mining
-     * @param shieldMining shield mining contract address
-     * @param sponsor sponsor address who funded the shield mining
-     * @param token token address that sponsor is distributing
-     */
-    function getShieldMiningRewards(address shieldMining, address protocol, address sponsor, address token) external onlyOwner {
-        address[] memory protocols = new address[](1);
-        protocols[0] = protocol;
-        address[] memory sponsors = new address[](1);
-        sponsors[0] = sponsor;
-        address[] memory tokens = new address[](1);
-        tokens[0] = token;
-        IShieldMining(shieldMining).claimRewards(protocols, sponsors, tokens);
-    }
-
-    /**
      * @dev rescue tokens locked in contract
      * @param token address of token to withdraw
      */
@@ -217,12 +201,37 @@ contract arNXMVault is Ownable {
         emit Restake(withdrawn, unstaked, staked, aum(), block.timestamp);
     }
 
-    function getRewardNxm() external onlyOwner {
+    /**
+     * @dev Split off from restake() function to enable reward fetching at any time.
+    **/
+    function getRewardNxm() 
+      external 
+      notContract 
+    {
         uint256 rewards = _getRewardsNxm();
-        //TODO check if we should stake the nxm right away
+        _wrapNxm();
         emit NxmReward(rewards, block.timestamp);
     }
     
+    /**
+     * @dev claim rewards from shield mining
+     * @param shieldMining shield mining contract address
+     * @param sponsor sponsor address who funded the shield mining
+     * @param token token address that sponsor is distributing
+     */
+    function getShieldMiningRewards(address shieldMining, address protocol, address sponsor, address token) 
+      external
+      notContract
+    {
+        address[] memory protocols = new address[](1);
+        protocols[0] = protocol;
+        address[] memory sponsors = new address[](1);
+        sponsors[0] = sponsor;
+        address[] memory tokens = new address[](1);
+        tokens[0] = token;
+        IShieldMining(shieldMining).claimRewards(protocols, sponsors, tokens);
+    }
+
     /**
      * @dev Find the arNxm value of a certain amount of wNxm.
      * @param _wAmount The amount of wNxm to check arNxm value of.
