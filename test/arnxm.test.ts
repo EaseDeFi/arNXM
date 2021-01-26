@@ -24,7 +24,7 @@ async function getTimestamp() {
 const EXCHANGE_TOKEN = ether('10000');
 const EXCHANGE_ETHER = ether('10');
 const AMOUNT = ether('1000');
-describe.only('arnxm', function(){
+describe('arnxm', function(){
   let arNXMVault : Contract;
   let arNXM : Contract;
   let referralRewards : Contract;
