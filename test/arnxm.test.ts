@@ -177,7 +177,7 @@ describe.only('arnxm', function(){
     });
 
     it('should not be able to restake before 7 days', async function(){
-      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been enough time since the last restake.")
+      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been 7 days since the last restake.")
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
     });
