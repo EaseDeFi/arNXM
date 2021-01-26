@@ -79,7 +79,8 @@ contract arNXMVault is Ownable {
     
     event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
     event Withdrawal(address indexed user, uint256 wAmount, uint256 timestamp);
-    event Restake(uint256 withdrawn, uint256 userReward, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
+    event Restake(uint256 withdrawn, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
+    event NxmReward(uint256 reward, uint256 timestamp);
     
     // Avoid composability issues for liquidation.
     modifier notContract {
@@ -205,7 +206,6 @@ contract arNXMVault is Ownable {
         
         // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
-        uint256 rewards = _getRewardsNxm();
         _wrapNxm();
         
         uint256 staked = _stakeNxm();
@@ -214,7 +214,13 @@ contract arNXMVault is Ownable {
         // Reset variables.
         lastRestake = block.timestamp;
 
-        emit Restake(withdrawn, rewards, unstaked, staked, aum(), block.timestamp);
+        emit Restake(withdrawn, unstaked, staked, aum(), block.timestamp);
+    }
+
+    function getRewardNxm() external onlyOwner {
+        uint256 rewards = _getRewardsNxm();
+        //TODO check if we should stake the nxm right away
+        emit NxmReward(rewards, block.timestamp);
     }
     
     /**

@@ -57,9 +57,6 @@ describe('ReferralRewards', function(){
   });
 
   describe('#stake()', function(){
-    it('should do something with referral', async function(){
-      expect(1).to.be.equal(0);
-    });
     it('should fail if msg.sender is not stakeManager', async function(){
       await expect(referralRewards.connect(user).stake(user.getAddress(), referral.getAddress(), amount)).to.be.revertedWith("Caller is not stake controller.");
     });
@@ -84,9 +81,6 @@ describe('ReferralRewards', function(){
   describe('#withdraw()', function(){
     beforeEach(async function(){
       await referralRewards.connect(stakeController).stake(user.getAddress(), referral.getAddress(), amount);
-    });
-    it('should do something with referral', async function(){
-      expect(1).to.be.equal(0);
     });
     it('should fail if msg.sender is not stakeManager', async function(){
       await expect(referralRewards.connect(user).withdraw(user.getAddress(), referral.getAddress(), amount)).to.be.revertedWith("Caller is not stake controller.");
