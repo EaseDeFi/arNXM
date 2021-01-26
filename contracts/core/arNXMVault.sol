@@ -6,6 +6,7 @@ import '../interfaces/IWNXM.sol';
 import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
+import '../interfaces/IShieldMining.sol';
 
 /**
  * @title arNXM Vault
@@ -122,6 +123,22 @@ contract arNXMVault is Ownable {
         
         // Approve to send funds to reward manager.
         arNxm.approve( _rewardManager, uint256(-1) );
+    }
+
+    /**
+     * @dev claim rewards from shield mining
+     * @param shieldMining shield mining contract address
+     * @param sponsor sponsor address who funded the shield mining
+     * @param token token address that sponsor is distributing
+     */
+    function getShieldMiningRewards(address shieldMining, address protocol, address sponsor, address token) external onlyOwner {
+        address[] memory protocols = new address[](1);
+        protocols[0] = protocol;
+        address[] memory sponsors = new address[](1);
+        sponsors[0] = sponsor;
+        address[] memory tokens = new address[](1);
+        tokens[0] = token;
+        IShieldMining(shieldMining).claimRewards(protocols, sponsors, tokens);
     }
     
     /**

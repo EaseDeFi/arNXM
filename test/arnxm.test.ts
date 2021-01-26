@@ -24,7 +24,7 @@ async function getTimestamp() {
 const EXCHANGE_TOKEN = ether('10000');
 const EXCHANGE_ETHER = ether('10');
 const AMOUNT = ether('1000');
-describe('arnxm', function(){
+describe.only('arnxm', function(){
   let arNXMVault : Contract;
   let arNXM : Contract;
   let referralRewards : Contract;
@@ -87,6 +87,35 @@ describe('arnxm', function(){
     await nxm.nxm.connect(owner).transfer(userAddress, AMOUNT.mul(1000)); 
     await nxm.nxm.connect(user).approve(wNXM.address, AMOUNT.mul(1000));
     await nxm.nxm.connect(owner).approve(wNXM.address, AMOUNT.mul(1000)); 
+  });
+
+  describe('Shield mining rewards', function(){
+    let shieldReward: Contract;
+    let shieldMining: Contract;
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+      await arNXMVault.connect(user).approveNxmToWNXM();
+      await arNXMVault.connect(owner).restake(await getIndex());
+
+      const ERC20Mock = await ethers.getContractFactory('ERC20Mock');
+      shieldReward = await ERC20Mock.deploy();
+
+      const ShieldMining = await ethers.getContractFactory("CommunityStakingIncentives");
+      const startTime = await getTimestamp();
+      shieldMining = await ShieldMining.deploy(86400*7, startTime + 10 ,nxm.master.address); 
+    });
+    it("should be able to withdraw the mining rewards", async function(){
+      await increase(100);
+      await shieldReward.connect(owner).mintToSelf(ether("10"));
+      await shieldReward.connect(owner).approve(shieldMining.address, ether("10"));
+      await shieldMining.depositRewardsAndSetRate(protocols[0].address, shieldReward.address, ether("10"), ether("1"));
+      await increase(1000);
+      await arNXMVault.connect(owner).getShieldMiningRewards(shieldMining.address, protocols[0].address, owner.getAddress(), shieldReward.address);
+      const balance = await shieldReward.balanceOf(arNXMVault.address);
+      expect(balance).to.not.equal(0);
+    });
   });
 
   describe('#deposit', function(){
@@ -298,6 +327,19 @@ describe('arnxm', function(){
       expect(await referralRewards.balanceOf(ownerAddress)).to.equal(AMOUNT.mul(2));
       expect(await referralRewards.balanceOf(userAddress)).to.equal(ether('0'));
     });
+
+    it("ERROR",async function(){
+      await wNXM.connect(owner).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(owner).deposit(AMOUNT, userAddress);
+      // fisrt send to user without referrer
+      await arNXM.connect(owner).transfer(userAddress, AMOUNT);
+      // then register referrer
+      await wNXM.connect(user).approve(arNXMVault.address, 1);
+      await arNXMVault.connect(user).deposit(1, ownerAddress);
+      // Mimicking the contract having received rewards.
+      await arNXM.connect(user).transfer(ownerAddress, AMOUNT);
+    });
+
   });
 
 });
