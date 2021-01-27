@@ -236,6 +236,14 @@ describe('arnxm', function(){
       await arNXMVault.connect(owner).restake(await getIndex());
     });
 
+    it('should just update the lastRewardTime when no rewards and lastRewardTime is not set', async function(){
+      const prev = await arNXMVault.lastRewardTimestamp();
+      expect(prev).to.equal(0);
+      await arNXMVault.connect(owner).getRewardNxm();
+      const after = await arNXMVault.lastRewardTimestamp();
+      expect(after).to.not.equal(0);
+    });
+
     it('should distribute through duration', async function(){
       await nxm.nxm.connect(owner).transfer(nxm.pooledStaking.address, AMOUNT);
 
