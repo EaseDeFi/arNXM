@@ -207,6 +207,8 @@ contract arNXMVault is Ownable {
             lastRewardTimestamp = block.timestamp;
 
             emit NxmReward(rewards, block.timestamp);
+        } else if(lastRewardTimestamp == 0) {
+            lastRewardTimestamp = block.timestamp;
         }
     }
     
@@ -240,15 +242,13 @@ contract arNXMVault is Ownable {
       view
     returns (uint256 arAmount)
     {
-        IPooledStaking pool = IPooledStaking( _getPool() );
-        
-        // Get all balances of wNxm on this contract, being staked, then reward allowed to be distributed.
-        uint256 balance = wNxm.balanceOf( address(this) );
-        uint256 stakeDeposit = pool.stakerDeposit( address(this) );
+        // Get reward allowed to be distributed.
         uint256 reward = _currentReward();
         
         // Find totals of both tokens.
-        uint256 totalW = balance.add(stakeDeposit).add(reward).sub(lastReward);
+        // aum() holds full reward so we sub lastReward(which needs to be distributed over time
+        // and add reward that has beend distributed
+        uint256 totalW = aum().add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
         
         // Find exchange amount of one token, then find exchange amount for full value.
@@ -270,15 +270,13 @@ contract arNXMVault is Ownable {
       view
     returns (uint256 wAmount)
     {
-        IPooledStaking pool = IPooledStaking( _getPool() );
-        
-        // Get all balances of wNxm on this contract, being staked, then reward allowed to be distributed.
-        uint256 balance = wNxm.balanceOf( address(this) );
-        uint256 stakeDeposit = pool.stakerDeposit( address(this) );
+        // Get reward allowed to be distributed.
         uint256 reward = _currentReward();
         
         // Find totals of both tokens.
-        uint256 totalW = balance.add(stakeDeposit).add(reward).sub(lastReward);
+        // aum() holds full reward so we sub lastReward(which needs to be distributed over time
+        // and add reward that has beend distributed
+        uint256 totalW = aum().add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
         
         // Find exchange amount of one token, then find exchange amount for full value.
@@ -299,6 +297,31 @@ contract arNXMVault is Ownable {
         uint256 balance = wNxm.balanceOf( address(this) );
         uint256 stakeDeposit = pool.stakerDeposit( address(this) );
         aumTotal = balance.add(stakeDeposit);
+    }
+
+    /**
+     * @dev Used to determine staked nxm amount in pooled staking contract.
+     * @return staked staked nxm amount
+    **/
+    function stakedNxm()
+      public
+      view
+    returns (uint256 staked)
+    {
+        IPooledStaking pool = IPooledStaking( _getPool() );
+        staked = pool.stakerDeposit( address(this) );
+    }
+    
+    /**
+     * @dev Used to determine distributed reward amount 
+     * @return reward distributed reward amount
+    **/
+    function currentReward()
+      external
+      view
+    returns (uint256 reward)
+    {
+        reward = _currentReward();
     }
     
     /**
@@ -495,6 +518,9 @@ contract arNXMVault is Ownable {
     {
         uint256 duration = rewardDuration;
         uint256 timeElapsed = block.timestamp.sub(lastRewardTimestamp);
+        if(timeElapsed == 0){
+            return 0;
+        }
         
         // Full reward is added to the balance if it's been more than the disbursement duration.
         if (timeElapsed >= duration) {
@@ -706,5 +732,4 @@ contract arNXMVault is Ownable {
     {
         beneficiary = _newBeneficiary;
     }
-    
 }

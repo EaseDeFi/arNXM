@@ -13,6 +13,12 @@ async function increase(seconds: number) {
   await (signer.provider as providers.JsonRpcProvider).send("evm_increaseTime", [seconds]);
 }
 
+async function mine() {
+  const signers = await ethers.getSigners();
+  const signer = signers[0];
+  await (signer.provider as providers.JsonRpcProvider).send("evm_mine", []);
+}
+
 async function getTimestamp() {
   const signers = await ethers.getSigners();
   const signer = signers[0];
@@ -219,6 +225,39 @@ describe('arnxm', function(){
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('97'));
     });
+  });
+
+  describe('#getRewardNxm()', function(){
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+      await arNXMVault.connect(user).approveNxmToWNXM();
+      await arNXMVault.connect(owner).restake(await getIndex());
+    });
+
+    it('should distribute through duration', async function(){
+      await nxm.nxm.connect(owner).transfer(nxm.pooledStaking.address, AMOUNT);
+
+      await increase(86400 * 3);
+      await arNXMVault.connect(owner).restake(await getIndex());
+      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(ether("30"));
+
+      await nxm.pooledStaking.connect(owner).mockReward(arNXMVault.address, AMOUNT);
+
+      await increase(86400 * 3);
+      await arNXMVault.connect(owner).restake(await getIndex());
+      await increase(86400 * 1);
+      await arNXMVault.connect(owner).getRewardNxm();
+      const lastReward = await arNXMVault.lastReward();
+      expect(await arNXMVault.currentReward()).to.equal(0);
+      await increase(86400 * 1);
+      await mine();
+      expect(await arNXMVault.currentReward()).to.equal(lastReward.div(9));
+      await increase(86400 * 1);
+      await mine();
+      expect(await arNXMVault.currentReward()).to.equal(lastReward.div(9).mul(2));
+    });
 
     it('should reward referrers correctly', async function() {
       await nxm.nxm.connect(owner).transfer(nxm.pooledStaking.address, AMOUNT);
@@ -241,7 +280,6 @@ describe('arnxm', function(){
       await referralRewards.connect(owner).getReward(ownerAddress);
       expect(await arNXM.balanceOf(ownerAddress)).to.equal(AMOUNT.div(40));
     });
-
   });
 
   describe('#withdraw', function(){
