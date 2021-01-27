@@ -86,7 +86,7 @@ describe('arnxm', function(){
     await nxm.registerUser(arNXMVault.address);
     await nxm.nxm.connect(owner).transfer(userAddress, AMOUNT.mul(1000)); 
     await nxm.nxm.connect(user).approve(wNXM.address, AMOUNT.mul(1000));
-    await nxm.nxm.connect(owner).approve(wNXM.address, AMOUNT.mul(1000)); 
+    await nxm.nxm.connect(owner).approve(wNXM.address, AMOUNT.mul(1000));
   });
 
   describe('Shield mining rewards', function(){
@@ -183,7 +183,7 @@ describe('arnxm', function(){
     });
 
     it('should stake all protocols correctly', async function(){
-      let stake = AMOUNT.div(10).mul(9);
+      let stake = AMOUNT.sub(ether("30"));
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(stake);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(stake);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(stake);
@@ -192,7 +192,7 @@ describe('arnxm', function(){
 
     it('should unstake all protocols correctly', async function(){
       // Sorta complicated way to do it but the most clear without hardcoding (divided by 10 multiplied by 9 == 90%, divided by 100 multiplied by 7 == 7% of 90%).
-      let unstake = AMOUNT.div(10).mul(9).div(100).mul(10);
+      let unstake = AMOUNT.sub(ether("30")).div(100).mul(10);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstake);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstake);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstake);
@@ -206,34 +206,34 @@ describe('arnxm', function(){
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
 
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('270'));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('291'));
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
 
       // Process pending unstakes
       await increase(86400 * 90);
       await nxm.pooledStaking.processPendingActions(100);
-      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('270'));
+      expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('291'));
 
       await arNXMVault.connect(owner).restake(await getIndex());
 
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('90'));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('97'));
     });
 
-    it.skip('should reward referrers correctly', async function() {
+    it('should reward referrers correctly', async function() {
       await nxm.nxm.connect(owner).transfer(nxm.pooledStaking.address, AMOUNT);
 
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
-      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.div(10));
+      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(ether("30"));
 
       await nxm.pooledStaking.connect(owner).mockReward(arNXMVault.address, AMOUNT);
 
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
+      await arNXMVault.connect(owner).getRewardNxm();
 
-      // 10% is kept after restake so even though full amount has doubled, only 200 wNXM is in balance.
-      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.div(10).mul(2));
+      expect(await wNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT.add(ether("30")));
       // 2.5% goes to referrers
       expect(await arNXM.balanceOf(referralRewards.address)).to.equal(AMOUNT.div(40));
       

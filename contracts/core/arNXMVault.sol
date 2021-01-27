@@ -30,8 +30,9 @@ contract arNXMVault is Ownable {
     // How much to unstake each week. 10 == 1%; 1000 == 100%.
     uint256 public unstakePercent;
     
-    // Percent of the AUM total that we should keep in reserve. 10 == 1%; 1000 == 100%.
-    uint256 public reservePercent;
+    // Amount of wNXM (in token Wei) to reserve each period.
+    // Overwrites reservePercent in update.
+    uint256 public reserveAmount;
     
     // Withdrawals may be paused if a hack has recently happened. Timestamp of when the pause happened.
     uint256 public withdrawalsPaused;
@@ -116,7 +117,7 @@ contract arNXMVault is Ownable {
         unstakePercent = 100;
         adminPercent = 0;
         referPercent = 25;
-        reservePercent = 100;
+        reserveAmount = 30 ether;
         pauseDuration = 10 days;
         beneficiary = msg.sender;
         restakePeriod = 3 days;
@@ -205,21 +206,22 @@ contract arNXMVault is Ownable {
     
     /**
      * @dev claim rewards from shield mining
-     * @param shieldMining shield mining contract address
-     * @param sponsor sponsor address who funded the shield mining
-     * @param token token address that sponsor is distributing
-     */
-    function getShieldMiningRewards(address shieldMining, address protocol, address sponsor, address token) 
+     * @param _shieldMining shield mining contract address
+     * @param _protocol Protocol funding the rewards.
+     * @param _sponsor sponsor address who funded the shield mining
+     * @param _token token address that sponsor is distributing
+    **/
+    function getShieldMiningRewards(address _shieldMining, address _protocol, address _sponsor, address _token) 
       external
       notContract
     {
-        address[] memory protocols = new address[](1);
-        protocols[0] = protocol;
-        address[] memory sponsors = new address[](1);
-        sponsors[0] = sponsor;
-        address[] memory tokens = new address[](1);
-        tokens[0] = token;
-        IShieldMining(shieldMining).claimRewards(protocols, sponsors, tokens);
+        address[] memory protocol = new address[](1);
+        protocol[0] = _protocol;
+        address[] memory sponsor = new address[](1);
+        sponsor[0] = _sponsor;
+        address[] memory token = new address[](1);
+        token[0] = _token;
+        IShieldMining(_shieldMining).claimRewards(protocol, sponsor, token);
     }
 
     /**
@@ -393,7 +395,7 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev Unstake an amount from each protocol on Nxm (takes 90 days to unstake).
+     * @dev Unstake an amount from each protocol on Nxm (takes 30 days to unstake).
      * @param lastId The ID of the last unstake request on Nexus Mutual (needed for unstaking).
      * @return unstakeAmount The amount of each token that we're unstaking.
     **/
@@ -452,15 +454,14 @@ contract arNXMVault is Ownable {
     {
         _approveNxm(_getTokenController());
         uint256 balance = wNxm.balanceOf( address(this) );
-        uint256 toReserve = aum() * reservePercent / DENOMINATOR;
-        
+
         // If we do need to restake funds...
-        if (toReserve < balance) {
+        if (reserveAmount < balance) {
 
             IPooledStaking pool = IPooledStaking( _getPool() );
             
             // Determine how much to stake then unwrap wNxm to be able to stake it. Can't stake less than 20 NXM.
-            toStake = balance.sub(toReserve);
+            toStake = balance.sub(reserveAmount);
             if (toStake < 20 ether) return 0;
             
             _unwrapWNxm(toStake);
@@ -590,21 +591,20 @@ contract arNXMVault is Ownable {
       external 
       onlyOwner 
     {
-        require(token != address(nxm) && token != address(wNxm) && token != address(arNxm), "Cannot rescue nxm based tokens");
+        require(token != address(nxm) && token != address(wNxm) && token != address(arNxm), "Cannot rescue NXM-based tokens");
         uint256 balance = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransfer(msg.sender, balance);
     }
 
     /**
-     * @dev Owner may change how much of the AUM should be saved in reserve each week.
-     * @param _reservePercent The new reserve percent to change to.
+     * @dev Owner may change how much of the AUM should be saved in reserve each period.
+     * @param _reserveAmount The amount of wNXM (in token Wei) to reserve each period.
     **/
-    function changeReservePercent(uint256 _reservePercent)
+    function changeReserveAmount(uint256 _reserveAmount)
       external
       onlyOwner
     {
-        require(_reservePercent <= 1000, "Reserve percent cannot be more than 100%.");
-        reservePercent = _reservePercent;
+        reserveAmount = _reserveAmount;
     }
     
     /**
@@ -700,5 +700,5 @@ contract arNXMVault is Ownable {
     {
         beneficiary = _newBeneficiary;
     }
-
+    
 }
