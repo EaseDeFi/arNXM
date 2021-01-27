@@ -242,7 +242,7 @@ contract arNXMVault is Ownable {
         uint256 reward = _currentReward();
         
         // Find totals of both tokens.
-        uint256 totalW = balance.add(stakeDeposit).add(reward);
+        uint256 totalW = balance.add(stakeDeposit).add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
         
         // Find exchange amount of one token, then find exchange amount for full value.
@@ -272,7 +272,7 @@ contract arNXMVault is Ownable {
         uint256 reward = _currentReward();
         
         // Find totals of both tokens.
-        uint256 totalW = balance.add(stakeDeposit).add(reward);
+        uint256 totalW = balance.add(stakeDeposit).add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
         
         // Find exchange amount of one token, then find exchange amount for full value.
