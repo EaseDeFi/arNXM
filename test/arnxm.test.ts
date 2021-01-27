@@ -225,6 +225,134 @@ describe('arnxm', function(){
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('97'));
     });
+
+    describe("when protocol changed", function(){
+      let protocolz: Contract[] = [];
+      beforeEach(async function(){
+        protocolz = [];
+        const ERC20Mock = await ethers.getContractFactory('ERC20Mock');
+        const protocol_0 = await ERC20Mock.deploy();
+        const protocol_1 = await ERC20Mock.deploy();
+        const protocol_2 = await ERC20Mock.deploy();
+        const protocol_3 = await ERC20Mock.deploy();
+        protocolz.push(protocol_0);
+        protocolz.push(protocol_1);
+        protocolz.push(protocol_2);
+        protocolz.push(protocol_3);
+        const protocolsAddress = protocolz.map(x=>x.address);
+        await arNXMVault.connect(owner).changeProtocols(protocolsAddress, await getIndex());
+        await increase(86400 * 10);
+      });
+      it("plz", async function(){
+        await wNXM.connect(user).wrap(AMOUNT);
+        await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+        await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+        await arNXMVault.connect(owner).restake(await getIndex());
+        for(let i = 0; i<protocols.length; i++){
+          const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i].address);
+          const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[i].address);
+          expect(stake).to.equal(unstakingTotal);
+        }
+        for(let i = 0; i<protocolz.length; i++){
+          const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocolz[i].address);
+          const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolz[i].address);
+          expect(stake).to.not.equal(0);
+          expect(unstakingTotal).to.not.equal(0);
+        }
+      });
+      
+      it("when ustaking pending duration has passed, should update the bufferedProtocols", async function(){
+        await wNXM.connect(user).wrap(AMOUNT);
+        await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+        await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+        await increase(86400 * 90);
+        await nxm.pooledStaking.processPendingActions(100);
+        await arNXMVault.connect(owner).restake(await getIndex());
+        for(let i = 0; i<protocols.length; i++){
+          const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i].address);
+          const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[i].address);
+          expect(stake).to.equal(unstakingTotal);
+          expect(stake).to.equal(0);
+        }
+
+        for(let i = 0; i<protocolz.length; i++){
+          const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocolz[i].address);
+          const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolz[i].address);
+          expect(stake).to.not.equal(0);
+          expect(unstakingTotal).to.not.equal(0);
+        }
+
+        for(let i = 0; i<protocolz.length; i++){
+          expect(await arNXMVault.bufferedProtocols(i)).to.equal(await arNXMVault.protocols(i));
+        }
+      });
+      
+      it("should have no issue with restake after fair amount of times", async function(){
+        await wNXM.connect(user).wrap(AMOUNT);
+        await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+        await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+        await increase(86400 * 90);
+        await nxm.pooledStaking.processPendingActions(100);
+        await arNXMVault.connect(owner).restake(await getIndex());
+        for(let i = 0; i<protocols.length; i++){
+          const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i].address);
+          const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[i].address);
+          expect(stake).to.equal(unstakingTotal);
+        }
+        for(let i = 0; i<protocolz.length; i++){
+          const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocolz[i].address);
+          const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolz[i].address);
+          expect(stake).to.not.equal(0);
+          expect(unstakingTotal).to.not.equal(0);
+        }
+
+        for(let i = 0; i<protocolz.length; i++){
+          expect(await arNXMVault.bufferedProtocols(i)).to.equal(await arNXMVault.protocols(i));
+        }
+        await wNXM.connect(user).wrap(AMOUNT);
+        await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+        await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+        await increase(86400 * 7);
+        await arNXMVault.connect(owner).restake(await getIndex());
+      });
+    });
+  });
+
+  describe('#changeProtocols', function(){
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+      await arNXMVault.connect(user).approveNxmToWNXM();
+      await arNXMVault.connect(owner).restake(await getIndex());
+    });
+
+    it("should unstake all from previous contracts", async function(){
+      const protocolz: Contract[] = [];
+      const ERC20Mock = await ethers.getContractFactory('ERC20Mock');
+      const protocol_0 = await ERC20Mock.deploy();
+      const protocol_1 = await ERC20Mock.deploy();
+      const protocol_2 = await ERC20Mock.deploy();
+      const protocol_3 = await ERC20Mock.deploy();
+      protocolz.push(protocol_0);
+      protocolz.push(protocol_1);
+      protocolz.push(protocol_2);
+      protocolz.push(protocol_3);
+
+      //sanity check that it was not unstaked from start
+      for(let i = 0; i<protocols.length; i++){
+        const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i].address);
+        const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[i].address);
+        expect(stake).to.not.equal(unstakingTotal);
+      }
+      const protocolsAddress = protocolz.map(x=>x.address);
+      await arNXMVault.connect(owner).changeProtocols(protocolsAddress, await getIndex());
+      for(let i = 0; i<protocols.length; i++){
+        const unstakingTotal = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i].address);
+        const stake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[i].address);
+        expect(stake).to.equal(unstakingTotal);
+      }
+    });
   });
 
   describe('#getRewardNxm()', function(){

@@ -7,7 +7,6 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
-
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM in Nexus Mutual while maintaining your liquidity.
@@ -77,7 +76,7 @@ contract arNXMVault is Ownable {
     
     // Referral => referrer
     mapping (address => address) public referrers;
-
+    
     event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
     event Withdrawal(address indexed user, uint256 wAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
@@ -494,14 +493,24 @@ contract arNXMVault is Ownable {
             
             _unwrapWNxm(toStake);
             
-            for (uint256 i = 0; i < protocols.length; i++) {
-                uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-                amounts.push( toStake.add(stake) );
+            if(bufferedProtocols.length == 0){
+                bufferedProtocols = protocols;
+            }
+            for (uint256 i = 0; i < bufferedProtocols.length; i++) {
+                uint256 stake = pool.stakerContractStake(address(this), bufferedProtocols[i]);
+                for(uint256 j = 0; j < protocols.length; j++){
+                    if(protocols[j] == bufferedProtocols[i]){
+                        stake = stake.add(toStake);
+                        break;
+                    }
+                }
+                amounts.push( stake );
             }
 
-            pool.depositAndStake(toStake, protocols, amounts);
+            pool.depositAndStake(toStake, bufferedProtocols, amounts);
+            // update the bufferedProtocols after deposit
+            bufferedProtocols = pool.stakerContractsArray(address(this));
             delete amounts;
-            
         }
         
     }
@@ -677,12 +686,41 @@ contract arNXMVault is Ownable {
     /**
      * @dev Owner may change protocols that we stake for.
      * @param _protocols New list of protocols to stake for.
+     * @param _lastId last id of ustake requests
     **/
-    function changeProtocols(address[] calldata _protocols)
+    function changeProtocols(address[] calldata _protocols, uint256 _lastId)
       external
       onlyOwner
     {
         protocols = _protocols;
+        IPooledStaking pool = IPooledStaking( _getPool() );
+        bufferedProtocols = pool.stakerContractsArray(address(this));
+        
+        // we are going to unstake all the bufferedProtocols
+        for (uint256 i = 0; i < bufferedProtocols.length; i++) {
+            uint256 indUnstakeAmount = _protocolUnstakeable(bufferedProtocols[i], uint256(~0));
+              
+            if (indUnstakeAmount > 0) {
+                amounts.push(indUnstakeAmount);
+                unstakingProtocols.push(bufferedProtocols[i]);
+            }
+          
+        }
+        
+        pool.requestUnstake(unstakingProtocols, amounts, _lastId);
+        
+        delete amounts;
+        delete unstakingProtocols;
+        // now we will push the new protocols to bufferedProtocols
+        for (uint256 i = 0; i < _protocols.length; i++) {
+            for(uint256 j = 0; j < bufferedProtocols.length; j++){
+                if(_protocols[i] == bufferedProtocols[j]){
+                    break;
+                }
+            }
+            // push new protocol at the end of bufferedProtocol
+            bufferedProtocols.push(_protocols[i]);
+        }
     }
     
     /**
@@ -734,5 +772,6 @@ contract arNXMVault is Ownable {
     
     // Update addition. Proxy paranoia brought it down here.
     uint256 public lastRewardTimestamp;
-    
+    // Another paranoia    
+    address[] public bufferedProtocols;
 }
