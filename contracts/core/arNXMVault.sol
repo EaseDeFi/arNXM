@@ -78,12 +78,10 @@ contract arNXMVault is Ownable {
     // Referral => referrer
     mapping (address => address) public referrers;
 
-    uint256 public lastRewardTimestamp;
-    
     event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
     event Withdrawal(address indexed user, uint256 wAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
-    event NxmReward(uint256 reward, uint256 timestamp);
+    event NxmReward(uint256 reward, uint256 timestamp, uint256 totalAum);
     
     // Avoid composability issues for liquidation.
     modifier notContract {
@@ -201,12 +199,13 @@ contract arNXMVault is Ownable {
       external 
       notContract 
     {
+        uint256 prevAum = aum();
         uint256 rewards = _getRewardsNxm();
         if (rewards > 0) {
             _wrapNxm();
             lastRewardTimestamp = block.timestamp;
 
-            emit NxmReward(rewards, block.timestamp);
+            emit NxmReward(rewards, block.timestamp, prevAum);
         } else if(lastRewardTimestamp == 0) {
             lastRewardTimestamp = block.timestamp;
         }
@@ -274,8 +273,8 @@ contract arNXMVault is Ownable {
         uint256 reward = _currentReward();
         
         // Find totals of both tokens.
-        // aum() holds full reward so we sub lastReward(which needs to be distributed over time
-        // and add reward that has beend distributed
+        // aum() holds full reward so we sub lastReward(which needs to be distributed over time)
+        // and add reward that has been distributed
         uint256 totalW = aum().add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
         
@@ -430,7 +429,7 @@ contract arNXMVault is Ownable {
     **/
     function _unstakeNxm(uint256 lastId)
       internal
-      returns (uint256 unstakeAmount)
+    returns (uint256 unstakeAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
@@ -732,4 +731,8 @@ contract arNXMVault is Ownable {
     {
         beneficiary = _newBeneficiary;
     }
+    
+    // Update addition. Proxy paranoia brought it down here.
+    uint256 public lastRewardTimestamp;
+    
 }
