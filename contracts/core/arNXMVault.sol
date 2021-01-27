@@ -77,6 +77,8 @@ contract arNXMVault is Ownable {
     
     // Referral => referrer
     mapping (address => address) public referrers;
+
+    uint256 public lastRewardTimestamp;
     
     event Deposit(address indexed user, uint256 wAmount, uint256 timestamp);
     event Withdrawal(address indexed user, uint256 wAmount, uint256 timestamp);
@@ -200,8 +202,12 @@ contract arNXMVault is Ownable {
       notContract 
     {
         uint256 rewards = _getRewardsNxm();
-        _wrapNxm();
-        emit NxmReward(rewards, block.timestamp);
+        if (rewards > 0) {
+            _wrapNxm();
+            lastRewardTimestamp = block.timestamp;
+
+            emit NxmReward(rewards, block.timestamp);
+        }
     }
     
     /**
@@ -488,7 +494,7 @@ contract arNXMVault is Ownable {
     returns (uint256 reward)
     {
         uint256 duration = rewardDuration;
-        uint256 timeElapsed = block.timestamp.sub(lastRestake);
+        uint256 timeElapsed = block.timestamp.sub(lastRewardTimestamp);
         
         // Full reward is added to the balance if it's been more than the disbursement duration.
         if (timeElapsed >= duration) {
