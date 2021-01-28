@@ -411,7 +411,7 @@ contract arNXMVault is Ownable {
 
         // Mint to beneficary then this address (to then transfer to rewardManager).
         if (adminReward > 0) {
-          arNxm.mint(beneficiary, adminReward);
+            arNxm.mint(beneficiary, adminReward);
         }
         if (referReward > 0) {
             arNxm.mint(address(this), referReward);
