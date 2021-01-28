@@ -173,7 +173,7 @@ describe('arnxm', function(){
     return index;
   }
 
-  describe('#restake', function(){
+  describe.only('#restake', function(){
     beforeEach(async function(){
       await wNXM.connect(user).wrap(AMOUNT);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
@@ -212,7 +212,11 @@ describe('arnxm', function(){
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
 
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(ether('291'));
+      // 10% of AMOUNT + 10% of AMOUNT - 10%
+      // I can't do math I swear
+      let unstakeOne = AMOUNT.div(10);
+      let unstakeTwo = AMOUNT.sub(unstakeOne).div(10);
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeOne.add(unstakeTwo));
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
 
       // Process pending unstakes

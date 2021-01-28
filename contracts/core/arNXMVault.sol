@@ -122,6 +122,7 @@ contract arNXMVault is Ownable {
         beneficiary = msg.sender;
         restakePeriod = 3 days;
         rewardDuration = 9 days;
+        bucketSize = 10;
         
         // Approve to send funds to reward manager.
         arNxm.approve( _rewardManager, uint256(-1) );
@@ -185,6 +186,7 @@ contract arNXMVault is Ownable {
         
         uint256 staked = _stakeNxm();
         uint256 unstaked = _unstakeNxm(lastId);
+        startProtocol = (startProtocol + bucketSize) % protocols.length;
         
         // Reset variables.
         lastRestake = block.timestamp;
@@ -432,19 +434,16 @@ contract arNXMVault is Ownable {
     returns (uint256 unstakeAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-        uint256 stake = pool.stakerContractStake(address(this), protocols[0]);
+        uint256 stake = pool.stakerContractStake(address(this), protocols[startProtocol]);
         unstakeAmount = stake * unstakePercent / DENOMINATOR;
         // Can't unstake less than 20 NXM.
         if (unstakeAmount < 20 ether) return 0;
         
-        for (uint256 i = 0; i < protocols.length; i++) {
+        uint256 end = startProtocol + bucketSize > protocols.length ? protocols.length : startProtocol + bucketSize;
+        for (uint256 i = startProtocol; i < end; i++) {
             uint256 indUnstakeAmount = _protocolUnstakeable(protocols[i], unstakeAmount);
-              
-            if (indUnstakeAmount > 0) {
-                amounts.push(indUnstakeAmount);
-                unstakingProtocols.push(protocols[i]);
-            }
-          
+            amounts.push(indUnstakeAmount);
+            unstakingProtocols.push(protocols[i]);
         }
         
         pool.requestUnstake(unstakingProtocols, amounts, lastId);
@@ -496,16 +495,16 @@ contract arNXMVault is Ownable {
             
             for (uint256 i = 0; i < protocols.length; i++) {
                 uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-                amounts.push( toStake.add(stake) );
+                uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
+                amounts.push(stakeAmount);
             }
 
             pool.depositAndStake(toStake, protocols, amounts);
             delete amounts;
-            
         }
         
     }
-    
+
     /**
      * @dev Calculate what the current reward is. We stream this to arNxm value to avoid dumps.
      * @return reward Amount of reward currently calculated into arNxm value.
@@ -523,16 +522,12 @@ contract arNXMVault is Ownable {
         
         // Full reward is added to the balance if it's been more than the disbursement duration.
         if (timeElapsed >= duration) {
-
             reward = lastReward;
-        
         // Otherwise, disburse amounts linearly over duration.
         } else {
-            
             // 1e18 just for a buffer.
             uint256 portion = ( duration.mul(1e18) ).div(timeElapsed);
             reward = ( lastReward.mul(1e18) ).div(portion);
-            
         }
     }
     
@@ -677,12 +672,24 @@ contract arNXMVault is Ownable {
     /**
      * @dev Owner may change protocols that we stake for.
      * @param _protocols New list of protocols to stake for.
+     * @param _removedProtocols Protocols removed from our staking that must be 100% unstaked.
     **/
-    function changeProtocols(address[] calldata _protocols)
+    function changeProtocols(address[] calldata _protocols, address[] calldata _removedProtocols)
       external
       onlyOwner
     {
         protocols = _protocols;
+
+        for (uint256 i = 0; i < _removedProtocols.length; i++) {
+            uint256 indUnstakeAmount = _protocolUnstakeable(_removedProtocols[i], uint256(~0));
+            amounts.push(indUnstakeAmount);
+            unstakingProtocols.push(protocols[i]);
+        }
+        
+        pool.requestUnstake(unstakingProtocols, amounts, lastId);
+        
+        delete amounts;
+        delete unstakingProtocols;
     }
     
     /**
@@ -734,5 +741,9 @@ contract arNXMVault is Ownable {
     
     // Update addition. Proxy paranoia brought it down here.
     uint256 public lastRewardTimestamp;
+
+    // Second update additions.
+    uint256 public startProtocol;
+    uint256 public bucketSize;
     
 }
