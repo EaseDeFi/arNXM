@@ -680,18 +680,20 @@ contract arNXMVault is Ownable {
     {
         protocols = _protocols;
 
-        IPooledStaking pool = IPooledStaking( _getPool() );
-        
-        for (uint256 i = 0; i < _removedProtocols.length; i++) {
-            uint256 indUnstakeAmount = _protocolUnstakeable(_removedProtocols[i], uint256(~0));
-            amounts.push(indUnstakeAmount);
-            unstakingProtocols.push(protocols[i]);
-        }
+        if (_removedProtocols.length > 0) {
+            IPooledStaking pool = IPooledStaking( _getPool() );
+            
+            for (uint256 i = 0; i < _removedProtocols.length; i++) {
+                uint256 indUnstakeAmount = _protocolUnstakeable(_removedProtocols[i], uint256(~0));
+                amounts.push(indUnstakeAmount);
+                unstakingProtocols.push(protocols[i]);
+            }
 
-        pool.requestUnstake(unstakingProtocols, amounts, _lastId);
-        
-        delete amounts;
-        delete unstakingProtocols;
+            pool.requestUnstake(unstakingProtocols, amounts, _lastId);
+            
+            delete amounts;
+            delete unstakingProtocols;
+        }
     }
     
     /**
