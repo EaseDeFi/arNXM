@@ -674,19 +674,21 @@ contract arNXMVault is Ownable {
      * @param _protocols New list of protocols to stake for.
      * @param _removedProtocols Protocols removed from our staking that must be 100% unstaked.
     **/
-    function changeProtocols(address[] calldata _protocols, address[] calldata _removedProtocols)
+    function changeProtocols(address[] calldata _protocols, address[] calldata _removedProtocols, uint256 _lastId)
       external
       onlyOwner
     {
         protocols = _protocols;
 
+        IPooledStaking pool = IPooledStaking( _getPool() );
+        
         for (uint256 i = 0; i < _removedProtocols.length; i++) {
             uint256 indUnstakeAmount = _protocolUnstakeable(_removedProtocols[i], uint256(~0));
             amounts.push(indUnstakeAmount);
             unstakingProtocols.push(protocols[i]);
         }
-        
-        pool.requestUnstake(unstakingProtocols, amounts, lastId);
+
+        pool.requestUnstake(unstakingProtocols, amounts, _lastId);
         
         delete amounts;
         delete unstakingProtocols;
