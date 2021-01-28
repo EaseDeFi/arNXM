@@ -61,8 +61,8 @@ contract arNXMVault is Ownable {
     // Amount to unstake each time.
     uint256[] private amounts;
     
-    // Protocols being unstaked each time restake occurs.
-    address[] private unstakingProtocols;
+    // Protocols being actively used in staking or unstaking.
+    address[] private activeProtocols;
 
     // Nxm tokens.
     IERC20 public wNxm;
@@ -122,7 +122,7 @@ contract arNXMVault is Ownable {
         beneficiary = msg.sender;
         restakePeriod = 3 days;
         rewardDuration = 9 days;
-        bucketSize = 10;
+        bucketSize = 2;
         
         // Approve to send funds to reward manager.
         arNxm.approve( _rewardManager, uint256(-1) );
@@ -443,13 +443,13 @@ contract arNXMVault is Ownable {
         for (uint256 i = startProtocol; i < end; i++) {
             uint256 indUnstakeAmount = _protocolUnstakeable(protocols[i], unstakeAmount);
             amounts.push(indUnstakeAmount);
-            unstakingProtocols.push(protocols[i]);
+            activeProtocols.push(protocols[i]);
         }
         
-        pool.requestUnstake(unstakingProtocols, amounts, lastId);
+        pool.requestUnstake(activeProtocols, amounts, lastId);
         
         delete amounts;
-        delete unstakingProtocols;
+        delete activeProtocols;
     }
 
     /**
@@ -496,11 +496,15 @@ contract arNXMVault is Ownable {
             for (uint256 i = 0; i < protocols.length; i++) {
                 uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
                 uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
+                if (stakeAmount == 0) continue;
+
                 amounts.push(stakeAmount);
+                activeProtocols.push(protocols[i]);
             }
 
-            pool.depositAndStake(toStake, protocols, amounts);
+            pool.depositAndStake(toStake, activeProtocols, amounts);
             delete amounts;
+            delete activeProtocols;
         }
         
     }
@@ -670,7 +674,7 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev Owner may change protocols that we stake for.
+     * @dev Owner may change protocols that we stake for and remove any.
      * @param _protocols New list of protocols to stake for.
      * @param _removedProtocols Protocols removed from our staking that must be 100% unstaked.
     **/
@@ -686,13 +690,13 @@ contract arNXMVault is Ownable {
             for (uint256 i = 0; i < _removedProtocols.length; i++) {
                 uint256 indUnstakeAmount = _protocolUnstakeable(_removedProtocols[i], uint256(~0));
                 amounts.push(indUnstakeAmount);
-                unstakingProtocols.push(protocols[i]);
+                activeProtocols.push(protocols[i]);
             }
 
-            pool.requestUnstake(unstakingProtocols, amounts, _lastId);
+            pool.requestUnstake(activeProtocols, amounts, _lastId);
             
             delete amounts;
-            delete unstakingProtocols;
+            delete activeProtocols;
         }
     }
     
