@@ -175,15 +175,15 @@ describe('arnxm', function(){
 
   describe.only('#restake', function(){
     beforeEach(async function(){
-      await wNXM.connect(user).wrap(AMOUNT);
-      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await wNXM.connect(user).wrap(AMOUNT.mul(2));
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT.mul(2));
       await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
       await arNXMVault.connect(user).approveNxmToWNXM();
       await arNXMVault.connect(owner).restake(await getIndex());
     });
 
     it('should not be able to restake before 7 days', async function(){
-      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been 7 days since the last restake.")
+      await expect(arNXMVault.connect(owner).restake(await getIndex())).to.be.revertedWith("It has not been enough time since the last restake.")
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
     });
@@ -192,17 +192,48 @@ describe('arnxm', function(){
       let stake = AMOUNT.sub(ether("30"));
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(stake);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(stake);
-      //expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(stake);
-      //expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(stake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(0);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(0);
+
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress);
+      await arNXMVault.connect(owner).restake(await getIndex());
+      await increase(86400 * 4);
+
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(stake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(stake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(stake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(stake);
     });
 
     it('should unstake all protocols correctly', async function(){
       // Sorta complicated way to do it but the most clear without hardcoding (divided by 10 multiplied by 9 == 90%, divided by 100 multiplied by 7 == 7% of 90%).
       let unstake = AMOUNT.sub(ether("30")).div(100).mul(10);
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstake);
-      //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstake);
-      //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[3].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(0);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(0);
+
+      await arNXMVault.connect(owner).restake(await getIndex());
+      await increase(86400 * 3);
+
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstake);
+
+      let unstakeTwo = unstake.add(AMOUNT.sub(unstake).div(100).mul(10));
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstake);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstake);
+
+      await arNXMVault.connect(owner).restake(await getIndex());
+      await increase(86400 * 3);
+
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstakeTwo);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstakeTwo);
     });
 
     it('should withdraw and restake all protocols correctly', async function(){
