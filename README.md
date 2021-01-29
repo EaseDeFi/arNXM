@@ -1,3 +1,5 @@
+## Current Master is not eligible for bug bounty.
+
 # arNXM
 
 Armor's arNXM vault allows users to stake wNXM tokens with Nexus Mutual without the need to lock their tokens for 90 days. It's been created to boost the amount of capital being staked in the Nexus Mutual protocol.
