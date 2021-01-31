@@ -273,8 +273,7 @@ contract arNXMVault is Ownable {
         // Get reward allowed to be distributed.
         uint256 reward = _currentReward();
         
-        // Find totals of both tokens.
-        // aum() holds full reward so we sub lastReward(which needs to be distributed over time)
+        // aum() holds full reward so we sub lastReward (which needs to be distributed over time)
         // and add reward that has been distributed
         uint256 totalN = aum().add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
@@ -301,8 +300,7 @@ contract arNXMVault is Ownable {
         // Get reward allowed to be distributed.
         uint256 reward = _currentReward();
         
-        // Find totals of both tokens.
-        // aum() holds full reward so we sub lastReward(which needs to be distributed over time)
+        // aum() holds full reward so we sub lastReward (which needs to be distributed over time)
         // and add reward that has been distributed
         uint256 totalN = aum().add(reward).sub(lastReward);
         uint256 totalAr = arNxm.totalSupply();
@@ -502,13 +500,13 @@ contract arNXMVault is Ownable {
     returns (uint256 toStake)
     {
         _approveNxm(_getTokenController());
-        uint256 balance = wNxm.balanceOf( address(this) );
+        uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
         if (reserveAmount < balance) {
             IPooledStaking pool = IPooledStaking( _getPool() );
             
-            // Determine how much to stake then unwrap wNxm to be able to stake it. Can't stake less than 20 NXM.
+            // Determine how much to stake. Can't stake less than 20 NXM.
             toStake = balance.sub(reserveAmount);
             if (toStake < 20 ether) return 0;
                         
@@ -662,6 +660,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
+        // 20 is somewhat arbitrary (max plus a bit in case max expands in the future).
         require(_bucketSize <= 20, "Bucket size is too large.");
         bucketSize = _bucketSize;
     }
@@ -781,15 +780,17 @@ contract arNXMVault is Ownable {
         beneficiary = _newBeneficiary;
     }
     
-    // Update addition. Proxy paranoia brought it down here.
+    //// Update addition. Proxy paranoia brought it down here. ////
+    
     uint256 public lastRewardTimestamp;
 
-    // Second update additions.
+    //// Second update additions. ////
 
     // Protocol that the next restaking will begin on.
     uint256 public startProtocol;
 
     // Checkpoint in case we want to cut off certain buckets (where we begin the rotations).
+    // To bar protocols from being staked/unstaked, move them to before checkpointProtocol.
     uint256 public checkpointProtocol;
 
     // Number of protocols to stake each time.
