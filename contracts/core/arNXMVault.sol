@@ -7,7 +7,6 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
-
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM or NXM in Nexus Mutual while maintaining your liquidity.
@@ -210,10 +209,12 @@ contract arNXMVault is Ownable {
     function _restake(uint256 _lastId)
       internal
       notContract
-    {   
+    {
         // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
+        // This will stake for all protocols, including unstaking protocols
         uint256 staked = _stakeNxm();
+        // This will unstake from all unstaking protocols
         uint256 unstaked = _unstakeNxm(_lastId);
         startProtocol = (startProtocol + bucketSize) % protocols.length;
         if (startProtocol < checkpointProtocol) startProtocol = checkpointProtocol;
@@ -387,7 +388,7 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev Withdraw any wNxm we can from the staking pool.
+     * @dev Withdraw any Nxm we can from the staking pool.
      * @return amount The amount of funds that are being withdrawn.
     **/
     function _withdrawNxm()
@@ -456,8 +457,8 @@ contract arNXMVault is Ownable {
         uint256 end = startProtocol + bucketSize > protocols.length ? protocols.length : startProtocol + bucketSize;
         for (uint256 i = startProtocol; i < end; i++) {
             uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-            unstakeAmount = stake * unstakePercents[i] / DENOMINATOR;
-            
+            uint256 requested = pool.stakerContractPendingUnstakeTotal(address(this), protocols[i]);
+            unstakeAmount = stake.mul(unstakePercents[i]).div(DENOMINATOR).sub(requested);
             // Can't unstake less than 20 NXM.
             if (unstakeAmount < 20 ether) return 0;
 
@@ -492,7 +493,7 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev Stake any wNxm over the amount we need to keep in reserve (bufferPercent% more than withdrawals last week).
+     * @dev Stake any Nxm over the amount we need to keep in reserve (bufferPercent% more than withdrawals last week).
      * @return toStake Amount of token that we will be staking. 
     **/
     function _stakeNxm()
@@ -509,7 +510,6 @@ contract arNXMVault is Ownable {
             // Determine how much to stake. Can't stake less than 20 NXM.
             toStake = balance.sub(reserveAmount);
             if (toStake < 20 ether) return 0;
-                        
             for (uint256 i = 0; i < protocols.length; i++) {
                 uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
                 uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
