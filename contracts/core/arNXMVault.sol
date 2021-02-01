@@ -457,8 +457,7 @@ contract arNXMVault is Ownable {
         uint256 end = startProtocol + bucketSize > protocols.length ? protocols.length : startProtocol + bucketSize;
         for (uint256 i = startProtocol; i < end; i++) {
             uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-            uint256 requested = pool.stakerContractPendingUnstakeTotal(address(this), protocols[i]);
-            unstakeAmount = stake.mul(unstakePercents[i]).div(DENOMINATOR).sub(requested);
+            unstakeAmount = stake.mul(unstakePercents[i]).div(DENOMINATOR);
             // Can't unstake less than 20 NXM.
             if (unstakeAmount < 20 ether) return 0;
 
