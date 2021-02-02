@@ -757,7 +757,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_rewardDuration <= 30 days, "Restake period cannot be more than 30 days.");
+        require(_rewardDuration <= 30 days, "Reward duration cannot be more than 30 days.");
         rewardDuration = _rewardDuration;
     }
     
