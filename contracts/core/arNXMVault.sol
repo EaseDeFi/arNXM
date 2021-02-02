@@ -692,12 +692,15 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
+        //"protocols" means the active protocols which arNXM is going add stakes
         protocols = _protocols;
         IPooledStaking pool = IPooledStaking( _getPool() );
+        //"bufferedProtocols" means all protocols that arNXM is currently staking
         bufferedProtocols = pool.stakerContractsArray(address(this));
         
         // we are going to unstake all the bufferedProtocols
         for (uint256 i = 0; i < bufferedProtocols.length; i++) {
+            //BUT** if the bufferedProtocols has duplicate 
             uint256 indUnstakeAmount = _protocolUnstakeable(bufferedProtocols[i], uint256(~0));
               
             if (indUnstakeAmount > 0) {

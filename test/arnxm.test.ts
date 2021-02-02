@@ -353,6 +353,9 @@ describe('arnxm', function(){
         expect(stake).to.equal(unstakingTotal);
       }
     });
+
+    it("should be able to add duplicate protocols", async function(){
+    });
   });
 
   describe('#getRewardNxm()', function(){
