@@ -502,7 +502,7 @@ contract arNXMVault is Ownable {
     **/
     function _stakeNxm()
       internal
-    returns (uint256 toStake)
+    returns (uint256 toDeposit)
     {
         _approveNxm(_getTokenController());
         uint256 balance = nxm.balanceOf( address(this) );
@@ -512,22 +512,27 @@ contract arNXMVault is Ownable {
             IPooledStaking pool = IPooledStaking( _getPool() );
             
             // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount);
-            if (toStake < 20 ether) return 0;
-            for (uint256 i = 0; i < protocols.length; i++) {
-                uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-                uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
-                if (stakeAmount == 0) continue;
-
-                amounts.push(stakeAmount);
-                activeProtocols.push(protocols[i]);
-            }
-
-            pool.depositAndStake(toStake, activeProtocols, amounts);
+            toDeposit = balance.sub(reserveAmount);
+            if (toDeposit < 20 ether) return 0;
+            _setProtocolsAndAmounts();
+            pool.depositAndStake(toDeposit, activeProtocols, amounts);
             delete amounts;
             delete activeProtocols;
         }
         
+    }
+
+    function _setProtocolsAndAmounts(uint256 _toDeposit) internal {
+        address[] memory stakingProtocols = pool.stakerContractsArray(address(this));
+        for (uint256 i = 0; i < stakingProtocols.length; i++) {
+            uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
+            uint256 deposit = pool.stakerDeposit(address(this));
+            //uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toDeposit.add(stake) : stake;
+            uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toDeposit.add(deposit) : stake;
+            // we are not skipping for the 0 amounts
+            amounts.push(stakeAmount);
+            activeProtocols.push(protocols[i]);
+        }
     }
 
     /**
@@ -666,6 +671,7 @@ contract arNXMVault is Ownable {
     {
         // 20 is somewhat arbitrary (max plus a bit in case max expands in the future).
         require(_bucketSize <= 20, "Bucket size is too large.");
+        require(protocols.length >= _bucketSize, "Bucket size cannot be larger than protocol length");
         bucketSize = _bucketSize;
     }
 
@@ -709,7 +715,7 @@ contract arNXMVault is Ownable {
 
     /**
      * @dev Owner may change protocols that we stake for and remove any.
-     * @param _protocols New list of protocols to stake for.
+     * @param _protocols New list of protocols to stake for. <- this value should same as original order
      * @param _unstakePercents Percent to unstake for each protocol.
      * @param _removedProtocols Protocols removed from our staking that must be 100% unstaked.
     **/
