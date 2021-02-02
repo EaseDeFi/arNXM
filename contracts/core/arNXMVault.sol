@@ -7,6 +7,7 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
+import 'hardhat/console.sol';
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM or NXM in Nexus Mutual while maintaining your liquidity.
@@ -216,6 +217,8 @@ contract arNXMVault is Ownable {
         uint256 staked = _stakeNxm();
         // This will unstake from all unstaking protocols
         uint256 unstaked = _unstakeNxm(_lastId);
+        // For test
+        _withdrawNxm();
         startProtocol = (startProtocol + bucketSize) % protocols.length;
         if (startProtocol < checkpointProtocol) startProtocol = checkpointProtocol;
         lastRestake = block.timestamp;
@@ -397,9 +400,11 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         amount = pool.stakerMaxWithdrawable( address(this) );
+        console.log("AMOUNT");
+        console.logUint(amount);
         pool.withdraw(amount);
     }
-    
+
     /**
      * @dev Withdraw any available rewards from Nexus.
      * @return finalReward The amount of rewards to be given to users (full reward - admin reward - referral reward).
