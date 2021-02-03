@@ -7,7 +7,6 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
-import 'hardhat/console.sol';
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM or NXM in Nexus Mutual while maintaining your liquidity.
@@ -343,6 +342,16 @@ contract arNXMVault is Ownable {
     }
     
     /**
+     * @dev Used to unwrap wnxm tokens to nxm
+    **/
+    function unwrapWnxm()
+      external
+    {
+        uint256 balance = wNxm.balanceOf(address(this));
+        _unwrapWnxm(balance);
+    }
+    
+    /**
      * @dev Used to determine distributed reward amount 
      * @return reward distributed reward amount
     **/
@@ -400,8 +409,6 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         amount = pool.stakerMaxWithdrawable( address(this) );
-        console.log("AMOUNT");
-        console.logUint(amount);
         pool.withdraw(amount);
     }
 
@@ -496,6 +503,45 @@ contract arNXMVault is Ownable {
         
         // available <= stake is underflow protection.
         return available >= _unstakeAmount && available <= stake ? _unstakeAmount : available;
+    }
+    
+    /**
+     * @dev Stake any wNxm over the amount we need to keep in reserve (bufferPercent% more than withdrawals last week).
+     * @return toStake Amount of token that we will be staking.
+     **/
+    function _stakeNxmManual(address[] memory _protocols)
+      internal
+    returns (uint256 toStake)
+    {
+        _approveNxm(_getTokenController());
+        uint256 balance = nxm.balanceOf( address(this) );
+
+        // If we do need to restake funds...
+        if (reserveAmount < balance) {
+            IPooledStaking pool = IPooledStaking( _getPool() );
+
+            // Determine how much to stake. Can't stake less than 20 NXM.
+            toStake = balance.sub(reserveAmount);
+            if (toStake < 20 ether) return 0;
+
+            for (uint256 i = 0; i < protocols.length; i++) {
+                uint256 stakeAmount = pool.stakerContractStake(address(this), protocols[i]);
+
+                for (uint256 i = 0; i < _protocols.length; i++) {
+                    if (protocols[i] == _protocols[i]) stakeAmount += toStake;
+                    break;
+                }
+                //uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
+                if (stakeAmount == 0) continue;
+
+                amounts.push(stakeAmount);
+                activeProtocols.push(protocols[i]);
+            }
+
+            pool.depositAndStake(toStake, activeProtocols, amounts);
+            delete amounts;
+            delete activeProtocols;
+        }
     }
 
     /**
@@ -708,6 +754,7 @@ contract arNXMVault is Ownable {
         require(_adminPercent <= 500, "Cannot give admin more than 50% of rewards.");
         adminPercent = _adminPercent;
     }
+
 
     /**
      * @dev Owner may change protocols that we stake for and remove any.
