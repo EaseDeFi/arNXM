@@ -467,6 +467,8 @@ contract arNXMVault is Ownable {
             if (unstakeAmount < 20 ether) return 0;
 
             uint256 trueUnstakeAmount = _protocolUnstakeable(protocols[i], unstakeAmount);
+            // Can't unstake 0 amount
+            if(trueUnstakeAmount == 0) return 0;
             amounts.push(trueUnstakeAmount);
             activeProtocols.push(protocols[i]);
         }
