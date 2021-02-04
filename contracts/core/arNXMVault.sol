@@ -504,6 +504,14 @@ contract arNXMVault is Ownable {
         // available <= stake is underflow protection.
         return available >= _unstakeAmount && available <= stake ? _unstakeAmount : available;
     }
+
+    /**
+     * @dev Manual Stake function to deal with edge cases
+     * @param _protocols array of protocols to add stake
+     **/
+    function manualStake(address[] calldata _protocols) external onlyOwner {
+        _stakeNxmManual(_protocols);
+    }
     
     /**
      * @dev Stake any wNxm over the amount we need to keep in reserve (bufferPercent% more than withdrawals last week).
@@ -527,8 +535,8 @@ contract arNXMVault is Ownable {
             for (uint256 i = 0; i < protocols.length; i++) {
                 uint256 stakeAmount = pool.stakerContractStake(address(this), protocols[i]);
 
-                for (uint256 i = 0; i < _protocols.length; i++) {
-                    if (protocols[i] == _protocols[i]) stakeAmount += toStake;
+                for (uint256 j = 0; j < _protocols.length; i++) {
+                    if (protocols[i] == _protocols[j]) stakeAmount += toStake;
                     break;
                 }
                 //uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
