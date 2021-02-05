@@ -90,6 +90,14 @@ contract arNXMVault is Ownable {
         _;
     }
     
+    // Last time an EOA has called this contract.
+    mapping (address => uint256) public lastCall;
+    modifier oncePerBlock {
+        require(block.timestamp > lastCall[tx.origin], "May only call this contract once per block.");
+        _;
+        lastCall[tx.origin] = block.timestamp;
+    }
+
     /**
      * @param _protocols List of the 10 protocols we're using.
      * @param _wNxm Address of the wNxm contract.
@@ -138,6 +146,7 @@ contract arNXMVault is Ownable {
     **/
     function deposit(uint256 _nAmount, address _referrer, bool _isNxm)
       external
+      oncePerBlock
     {
         if ( referrers[msg.sender] == address(0) ) {
             referrers[msg.sender] = _referrer != address(0) ? _referrer : beneficiary;
@@ -165,6 +174,7 @@ contract arNXMVault is Ownable {
     **/
     function withdraw(uint256 _arAmount)
       external
+      oncePerBlock
     {
         require(block.timestamp.sub(withdrawalsPaused) > pauseDuration, "Withdrawals are temporarily paused.");
 
@@ -209,23 +219,15 @@ contract arNXMVault is Ownable {
     function _restake(uint256 _lastId)
       internal
       notContract
-<<<<<<< HEAD
+      oncePerBlock
     {   
-        // All Nexus functions.
-        uint256 withdrawn = _withdrawNxm();
-        uint256 staked = _stakeNxm();
-        uint256 unstaked = _unstakeNxm(_lastId);
-=======
-    {
         // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
         // This will stake for all protocols, including unstaking protocols
         uint256 staked = _stakeNxm();
         // This will unstake from all unstaking protocols
         uint256 unstaked = _unstakeNxm(_lastId);
-        // For test
-        _withdrawNxm();
->>>>>>> bucket-strat
+
         startProtocol = (startProtocol + bucketSize) % protocols.length;
         if (startProtocol < checkpointProtocol) startProtocol = checkpointProtocol;
         lastRestake = block.timestamp;
@@ -473,27 +475,26 @@ contract arNXMVault is Ownable {
     returns (uint256 unstakeAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
+        uint256 start = startProtocol;
+        uint256 end = start + bucketSize > protocols.length ? protocols.length : start + bucketSize;
 
-        uint256 end = startProtocol + bucketSize > protocols.length ? protocols.length : startProtocol + bucketSize;
         for (uint256 i = startProtocol; i < end; i++) {
-            uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-<<<<<<< HEAD
-            unstakeAmount = stake * unstakePercents[i] / DENOMINATOR;
-            
-=======
-            unstakeAmount = stake.mul(unstakePercents[i]).div(DENOMINATOR);
->>>>>>> bucket-strat
-            // Can't unstake less than 20 NXM.
-            if (unstakeAmount < 20 ether) return 0;
+            uint256 unstakePercent = unstakePercents[i];
+            address unstakeProtocol = protocols[i];
 
-            uint256 trueUnstakeAmount = _protocolUnstakeable(protocols[i], unstakeAmount);
-<<<<<<< HEAD
-=======
+            uint256 stake = pool.stakerContractStake(address(this), unstakeProtocol);
+            //unstakeAmount = stake * unstakePercent / DENOMINATOR;
+            
+            unstakeAmount = stake.mul(unstakePercent).div(DENOMINATOR);
+            // Can't unstake less than 20 NXM.
+            //if (unstakeAmount < 20 ether) continue;
+
+            uint256 trueUnstakeAmount = _protocolUnstakeable(unstakeProtocol, unstakeAmount);
             // Can't unstake 0 amount
-            if(trueUnstakeAmount == 0) return 0;
->>>>>>> bucket-strat
+            if(trueUnstakeAmount <= 20 ether) continue;
+
             amounts.push(trueUnstakeAmount);
-            activeProtocols.push(protocols[i]);
+            activeProtocols.push(unstakeProtocol);
         }
         
         pool.requestUnstake(activeProtocols, amounts, _lastId);
@@ -515,17 +516,24 @@ contract arNXMVault is Ownable {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 stake = pool.stakerContractStake(address(this), _protocol);
         uint256 requested = pool.stakerContractPendingUnstakeTotal(address(this), _protocol);
+
+        // Scenario in which all staked has already been requested to be unstaked.
+        if (requested >= stake) {
+            return 0;
+        }
+
         uint256 available = stake - requested;
-        
-        // available <= stake is underflow protection.
-        return available >= _unstakeAmount && available <= stake ? _unstakeAmount : available;
+
+        return _unstakeAmount <= available ? _unstakeAmount : available;
     }
     
     /**
      * @dev Stake any wNxm over the amount we need to keep in reserve (bufferPercent% more than withdrawals last week).
+     * @param _protocols List of protocols to stake in (NOT list of all protocols).
+     * @param _stakeAmounts List of amounts to stake in each relevant protocol--this is only ADDITIONAL stake rather than full stake.
      * @return toStake Amount of token that we will be staking.
      **/
-    function _stakeNxmManual(address[] memory _protocols)
+    function _stakeNxmManual(address[] memory _protocols, uint256[] memory _stakeAmounts)
       internal
     returns (uint256 toStake)
     {
@@ -541,17 +549,18 @@ contract arNXMVault is Ownable {
             if (toStake < 20 ether) return 0;
 
             for (uint256 i = 0; i < protocols.length; i++) {
-                uint256 stakeAmount = pool.stakerContractStake(address(this), protocols[i]);
+                address protocol = protocols[i];
+                uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
 
-                for (uint256 i = 0; i < _protocols.length; i++) {
-                    if (protocols[i] == _protocols[i]) stakeAmount += toStake;
+                for (uint256 j = 0; j < _protocols.length; j++) {
+                    if (protocol == _protocols[j]) stakeAmount += _stakeAmounts[j];
                     break;
                 }
                 //uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
                 if (stakeAmount == 0) continue;
 
                 amounts.push(stakeAmount);
-                activeProtocols.push(protocols[i]);
+                activeProtocols.push(protocol);
             }
 
             pool.depositAndStake(toStake, activeProtocols, amounts);
@@ -578,17 +587,17 @@ contract arNXMVault is Ownable {
             // Determine how much to stake. Can't stake less than 20 NXM.
             toStake = balance.sub(reserveAmount);
             if (toStake < 20 ether) return 0;
-<<<<<<< HEAD
                         
-=======
->>>>>>> bucket-strat
+            uint256 startPos = startProtocol;
             for (uint256 i = 0; i < protocols.length; i++) {
-                uint256 stake = pool.stakerContractStake(address(this), protocols[i]);
-                uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
+                address protocol = protocols[i];
+
+                uint256 stake = pool.stakerContractStake(address(this), protocol);
+                uint256 stakeAmount = i >= startPos && i < startPos + bucketSize ? toStake.add(stake) : stake;
                 if (stakeAmount == 0) continue;
 
                 amounts.push(stakeAmount);
-                activeProtocols.push(protocols[i]);
+                activeProtocols.push(protocol);
             }
 
             pool.depositAndStake(toStake, activeProtocols, amounts);

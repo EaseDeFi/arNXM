@@ -213,7 +213,6 @@ describe('arnxm', function(){
     it('should unstake all protocols correctly through rotations', async function(){
       // Unstaking 10% of what's staked
       let unstake = AMOUNT.sub(ether("30")).div(100).mul(10);
-<<<<<<< HEAD
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstake);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstake);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(0);
@@ -240,7 +239,6 @@ describe('arnxm', function(){
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstakeTwo);
       expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstakeTwo);
-=======
       console.log("#1 start");
       console.log("Balance : " + await nxm.nxm.balanceOf(arNXMVault.address));
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstake);
@@ -275,7 +273,7 @@ describe('arnxm', function(){
       console.log("Balance : " + await nxm.nxm.balanceOf(arNXMVault.address));
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
-      let unstakeTwo = unstake.add(AMOUNT.sub(ether("30")).add(withdrawable).div(10));
+      unstakeTwo = unstake.add(AMOUNT.sub(ether("30")).add(withdrawable).div(10));
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstake);
@@ -294,7 +292,6 @@ describe('arnxm', function(){
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstakeThree);
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[3].address)).to.equal(unstakeThree);
->>>>>>> bucket-strat
     });
 
     it('should withdraw and restake all protocols correctly', async function(){
@@ -315,19 +312,16 @@ describe('arnxm', function(){
       // TODO: this is all messed up cause of rotation
 
       // 10% of AMOUNT + 10% of AMOUNT - 10%
-<<<<<<< HEAD
       let unstakeOne = AMOUNT.div(10);
       let unstakeTwo = AMOUNT.sub(unstakeOne).div(10);
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeOne.add(unstakeTwo));
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
-=======
-      let unstakeOne = AMOUNT.sub(ether("30")).div(10);
-      let unstakeTwo = unstakeOne.add(withdrawable.add(AMOUNT).sub(ether("30")).div(10));
+      unstakeOne = AMOUNT.sub(ether("30")).div(10);
+      unstakeTwo = unstakeOne.add(withdrawable.add(AMOUNT).sub(ether("30")).div(10));
       console.log(unstakeTwo.toString());
       console.log(withdrawable.toString());
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
       //expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
->>>>>>> bucket-strat
 
       // Process pending unstakes
       await increase(86400 * 90);
