@@ -526,6 +526,10 @@ contract arNXMVault is Ownable {
 
         return _unstakeAmount <= available ? _unstakeAmount : available;
     }
+
+    function stakeNxmManual(address[] calldata _protocols, uint256[] calldata _stakeAmounts) external onlyOwner{
+        _stakeNxmManual(_protocols, _stakeAmounts);
+    }
     
     /**
      * @dev Stake any wNxm over the amount we need to keep in reserve (bufferPercent% more than withdrawals last week).
@@ -553,8 +557,10 @@ contract arNXMVault is Ownable {
                 uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
 
                 for (uint256 j = 0; j < _protocols.length; j++) {
-                    if (protocol == _protocols[j]) stakeAmount += _stakeAmounts[j];
-                    break;
+                    if (protocol == _protocols[j]){
+                        stakeAmount += _stakeAmounts[j];
+                        break;
+                    }
                 }
                 //uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
                 if (stakeAmount == 0) continue;
@@ -604,7 +610,6 @@ contract arNXMVault is Ownable {
             delete amounts;
             delete activeProtocols;
         }
-        
     }
 
     /**
@@ -662,18 +667,6 @@ contract arNXMVault is Ownable {
     returns (address pool)
     {
         pool = nxmMaster.getLatestAddress("PS");
-    }
-
-    /**
-     * @dev Get the current NXM token address from Nexus Mutual.
-     * @return nxmAddress Address of the NXM token.
-    **/
-    function _getNXM()
-      internal
-      view
-    returns(address nxmAddress)
-    {
-        nxmAddress = nxmMaster.tokenAddress();
     }
     
     /**
@@ -742,7 +735,7 @@ contract arNXMVault is Ownable {
       onlyOwner
     {
         // 20 is somewhat arbitrary (max plus a bit in case max expands in the future).
-        require(_bucketSize <= 20, "Bucket size is too large.");
+        require(_bucketSize <= 20 && _bucketSize <= protocols.length, "Bucket size is too large.");
         bucketSize = _bucketSize;
     }
 
@@ -795,7 +788,7 @@ contract arNXMVault is Ownable {
       external
       onlyOwner
     {
-        require(_protocols.length == _unstakePercents.length);
+        require(_protocols.length == _unstakePercents.length, "array length diff");
         protocols = _protocols;
         unstakePercents = _unstakePercents;
 
@@ -804,8 +797,12 @@ contract arNXMVault is Ownable {
             
             for (uint256 i = 0; i < _removedProtocols.length; i++) {
                 uint256 indUnstakeAmount = _protocolUnstakeable(_removedProtocols[i], uint256(~0));
+                if(indUnstakeAmount == 0){
+                    // skip already fully requested protocols
+                    continue;
+                }
                 amounts.push(indUnstakeAmount);
-                activeProtocols.push(protocols[i]);
+                activeProtocols.push(_removedProtocols[i]);
             }
 
             pool.requestUnstake(activeProtocols, amounts, _lastId);

@@ -42,7 +42,7 @@ describe('arnxm', function(){
   let wNXM : Contract;
 
   let protocols : Contract[] = [];
-
+  let protocolsAddress : string[] = [];
   beforeEach(async function(){
     protocols = [];
     let signers = await ethers.getSigners();
@@ -80,7 +80,7 @@ describe('arnxm', function(){
     protocols.push(protocol_2);
     protocols.push(protocol_3);
 
-    const protocolsAddress = protocols.map(x=>x.address);
+    protocolsAddress = protocols.map(x=>x.address);
     
     wNXM = await WNXM.deploy(nxm.nxm.address);
     arNXMVault = await ARNXMVault.deploy()
@@ -127,6 +127,7 @@ describe('arnxm', function(){
       await arNXMVault.connect(owner).getShieldMiningRewards(shieldMining.address, protocols[0].address, owner.getAddress(), shieldReward.address);
       const balance = await shieldReward.balanceOf(arNXMVault.address);
       expect(balance).to.not.equal(0);
+      await arNXMVault.connect(owner).rescueToken(shieldReward.address);
     });
   });
 
@@ -142,6 +143,13 @@ describe('arnxm', function(){
       expect(await referralRewards.balanceOf(ownerAddress)).to.equal(AMOUNT);
     });
     
+    it('should give correct arNxm when nothing is staked and increase referrer stake', async function(){
+      await nxm.nxm.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, true);
+      expect(await arNXM.balanceOf(userAddress)).to.equal(AMOUNT);
+      expect(await referralRewards.balanceOf(ownerAddress)).to.equal(AMOUNT);
+    });
+
     it('should give correct arNxm when there are rewards in contract', async function(){
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
@@ -213,32 +221,6 @@ describe('arnxm', function(){
     it('should unstake all protocols correctly through rotations', async function(){
       // Unstaking 10% of what's staked
       let unstake = AMOUNT.sub(ether("30")).div(100).mul(10);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(0);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(0);
-
-      await arNXMVault.connect(owner).restake(await getIndex());
-      await increase(86400 * 3);
-
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstake);
-
-      let unstakeTwo = unstake.add(AMOUNT.sub(unstake).div(100).mul(10));
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstake);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstake);
-
-      await arNXMVault.connect(owner).restake(await getIndex());
-      await increase(86400 * 3);
-
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[2].address)).to.equal(unstakeTwo);
-      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[3].address)).to.equal(unstakeTwo);
       console.log("#1 start");
       console.log("Balance : " + await nxm.nxm.balanceOf(arNXMVault.address));
       expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstake);
@@ -273,7 +255,7 @@ describe('arnxm', function(){
       console.log("Balance : " + await nxm.nxm.balanceOf(arNXMVault.address));
       await increase(86400 * 3);
       await arNXMVault.connect(owner).restake(await getIndex());
-      unstakeTwo = unstake.add(AMOUNT.sub(ether("30")).add(withdrawable).div(10));
+      let unstakeTwo = unstake.add(AMOUNT.sub(ether("30")).add(withdrawable).div(10));
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstakeTwo);
       //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstake);
@@ -492,7 +474,73 @@ describe('arnxm', function(){
   });
 
   // TODO: Add checkpoint test
-  // TODO: Add NXM deposit test
+  describe('#changeProtocols()', function(){
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
+      await arNXMVault.connect(owner).restake(await getIndex());
+    });
+
+    it('should fail if msg.sender is not owner', async function(){
+      await expect(arNXMVault.connect(user).changeProtocols(protocolsAddress,[100,100,100,100], [protocolsAddress[0], protocolsAddress[1]], await getIndex())).to.be.reverted;
+    });
+    it('should be able to change protocols', async function(){
+      await arNXMVault.connect(owner).changeProtocols(protocolsAddress,[100,100,100,100], [protocolsAddress[0], protocolsAddress[1], owner.getAddress()], await getIndex());
+      // staked == totalRequestedUnstake
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[0])).to.be.equal(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocolsAddress[0]));
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[1])).to.be.equal(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocolsAddress[1]));
+    });
+  });
+
+  describe('#stakeNxmManual()', function(){
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
+      await arNXMVault.connect(owner).restake(await getIndex());
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
+    });
+    it('should fail if msg.sender is not owner', async function(){
+      await expect(arNXMVault.connect(user).stakeNxmManual(protocolsAddress,[1,1,1,1])).to.be.reverted;
+    });
+    it('should increase stake amount', async function(){
+      const before_0 = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[0]);
+      const before_1 = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[1]);
+      await arNXMVault.connect(owner).stakeNxmManual([protocolsAddress[0], protocolsAddress[1]],[100,100]);
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[0])).to.equal(before_0.add(100));
+      expect(await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[1])).to.equal(before_1.add(100));
+    });
+  });
+  
+  describe('#changeCheckpointAndStart()', function(){
+    beforeEach(async function(){
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
+      await arNXMVault.connect(owner).restake(await getIndex());
+    });
+    it('should fail if msg.sender is not owner', async function(){
+      await expect(arNXMVault.connect(user).changeCheckpointAndStart(2,3)).to.be.reverted;
+    });
+    it('should change startProtocol and checkpointProtocol', async function(){
+      await arNXMVault.connect(owner).changeCheckpointAndStart(1,3);
+      expect(await arNXMVault.startProtocol()).to.equal(3);
+      expect(await arNXMVault.checkpointProtocol()).to.equal(1);
+      const before = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[3]);
+      await wNXM.connect(user).wrap(AMOUNT);
+      await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
+      
+      await arNXMVault.connect(owner).ownerRestake(await getIndex());
+      expect(await arNXMVault.startProtocol()).to.equal(1);
+      expect(await arNXMVault.checkpointProtocol()).to.equal(1);
+      const after = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocolsAddress[3]);
+      expect(after).to.equal(before.add(AMOUNT));
+    });
+  });
 
   describe('#getRewardNxm()', function(){
     beforeEach(async function(){
@@ -640,19 +688,5 @@ describe('arnxm', function(){
       expect(await referralRewards.balanceOf(ownerAddress)).to.equal(AMOUNT.mul(2));
       expect(await referralRewards.balanceOf(userAddress)).to.equal(ether('0'));
     });
-
-    it("ERROR",async function(){
-      await wNXM.connect(owner).approve(arNXMVault.address, AMOUNT);
-      await arNXMVault.connect(owner).deposit(AMOUNT, userAddress, false);
-      // fisrt send to user without referrer
-      await arNXM.connect(owner).transfer(userAddress, AMOUNT);
-      // then register referrer
-      await wNXM.connect(user).approve(arNXMVault.address, 1);
-      await arNXMVault.connect(user).deposit(1, ownerAddress, false);
-      // Mimicking the contract having received rewards.
-      await arNXM.connect(user).transfer(ownerAddress, AMOUNT);
-    });
-
   });
-
 });
