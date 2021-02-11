@@ -481,17 +481,13 @@ contract arNXMVault is Ownable {
         for (uint256 i = startProtocol; i < end; i++) {
             uint256 unstakePercent = unstakePercents[i];
             address unstakeProtocol = protocols[i];
-
             uint256 stake = pool.stakerContractStake(address(this), unstakeProtocol);
-            //unstakeAmount = stake * unstakePercent / DENOMINATOR;
             
             unstakeAmount = stake.mul(unstakePercent).div(DENOMINATOR);
-            // Can't unstake less than 20 NXM.
-            //if (unstakeAmount < 20 ether) continue;
-
             uint256 trueUnstakeAmount = _protocolUnstakeable(unstakeProtocol, unstakeAmount);
-            // Can't unstake 0 amount
-            if(trueUnstakeAmount <= 20 ether) continue;
+
+            // Can't unstake less than 20 NXM.
+            if (trueUnstakeAmount < 20 ether) continue;
 
             amounts.push(trueUnstakeAmount);
             activeProtocols.push(unstakeProtocol);
@@ -562,7 +558,6 @@ contract arNXMVault is Ownable {
                         break;
                     }
                 }
-                //uint256 stakeAmount = i >= startProtocol && i < startProtocol + bucketSize ? toStake.add(stake) : stake;
                 if (stakeAmount == 0) continue;
 
                 amounts.push(stakeAmount);
@@ -735,7 +730,7 @@ contract arNXMVault is Ownable {
       onlyOwner
     {
         // 20 is somewhat arbitrary (max plus a bit in case max expands in the future).
-        require(_bucketSize <= 20 && _bucketSize <= protocols.length, "Bucket size is too large.");
+        require(_bucketSize <= 10 && _bucketSize <= protocols.length, "Bucket size is too large.");
         bucketSize = _bucketSize;
     }
 
