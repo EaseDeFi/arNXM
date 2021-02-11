@@ -277,33 +277,33 @@ describe('arnxm', function(){
     });
 
     it('should withdraw and restake all protocols correctly', async function(){
+      let unstakeOne = AMOUNT.sub(ether("30")).div(10);
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeOne);
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(unstakeOne);
       await increase(86400 * 3);
       await wNXM.connect(user).wrap(AMOUNT);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT.sub(ether("30")), ownerAddress, false);
       let withdrawable = await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address);
       await arNXMVault.connect(owner).restake(await getIndex());
+      unstakeOne = AMOUNT.sub(ether("30")).div(10);
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[2].address)).to.equal(unstakeOne);
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[3].address)).to.equal(unstakeOne);
 
       await increase(86400 * 3);
       await wNXM.connect(user).wrap(AMOUNT);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT.sub(ether("30")), ownerAddress, false);
       withdrawable = withdrawable.add(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address));
+      let prevStake = await nxm.pooledStaking.stakerContractStake(arNXMVault.address, protocols[0].address);
+      let toStake = withdrawable.add(AMOUNT.sub(ether("30"))).add(prevStake);
+      console.log("RESTAKE");
+      console.log((await nxm.nxm.balanceOf(arNXMVault.address)).toString());
+      let prevUnstake = await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address);
       await arNXMVault.connect(owner).restake(await getIndex());
-
-      // TODO: this is all messed up cause of rotation
-
-      // 10% of AMOUNT + 10% of AMOUNT - 10%
-      let unstakeOne = AMOUNT.div(10);
-      let unstakeTwo = AMOUNT.sub(unstakeOne).div(10);
-      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeOne.add(unstakeTwo));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(prevUnstake.add(toStake.div(10)));
+      expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[1].address)).to.equal(prevUnstake.add(toStake.div(10)));
       expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
-      unstakeOne = AMOUNT.sub(ether("30")).div(10);
-      unstakeTwo = unstakeOne.add(withdrawable.add(AMOUNT).sub(ether("30")).div(10));
-      console.log(unstakeTwo.toString());
-      console.log(withdrawable.toString());
-      //expect(await nxm.pooledStaking.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[0].address)).to.equal(unstakeTwo);
-      //expect(await nxm.pooledStaking.stakerMaxWithdrawable(arNXMVault.address)).to.equal(ether('0'));
 
       // Process pending unstakes
       await increase(86400 * 90);
