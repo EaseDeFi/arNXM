@@ -92,10 +92,10 @@ contract arNXMVault is Ownable {
     
     // Last time an EOA has called this contract.
     mapping (address => uint256) public lastCall;
-    modifier oncePerBlock {
-        require(block.timestamp > lastCall[tx.origin], "May only call this contract once per block.");
-        _;
+    modifier oncePerTx {
+        require(block.timestamp > lastCall[tx.origin], "May only call this contract once per transaction.");
         lastCall[tx.origin] = block.timestamp;
+        _;
     }
 
     /**
@@ -131,7 +131,6 @@ contract arNXMVault is Ownable {
         beneficiary = msg.sender;
         restakePeriod = 3 days;
         rewardDuration = 9 days;
-        bucketSize = 2;
         
         // Approve to wrap and send funds to reward manager.
         _approveNxm(_wNxm);
@@ -146,7 +145,7 @@ contract arNXMVault is Ownable {
     **/
     function deposit(uint256 _nAmount, address _referrer, bool _isNxm)
       external
-      oncePerBlock
+      oncePerTx
     {
         if ( referrers[msg.sender] == address(0) ) {
             referrers[msg.sender] = _referrer != address(0) ? _referrer : beneficiary;
@@ -174,7 +173,7 @@ contract arNXMVault is Ownable {
     **/
     function withdraw(uint256 _arAmount)
       external
-      oncePerBlock
+      oncePerTx
     {
         require(block.timestamp.sub(withdrawalsPaused) > pauseDuration, "Withdrawals are temporarily paused.");
 
@@ -219,7 +218,7 @@ contract arNXMVault is Ownable {
     function _restake(uint256 _lastId)
       internal
       notContract
-      oncePerBlock
+      oncePerTx
     {   
         // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
