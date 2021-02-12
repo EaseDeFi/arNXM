@@ -90,8 +90,8 @@ contract arNXMVault is Ownable {
         _;
     }
     
-    // Last time an EOA has called this contract.
-    mapping (address => uint256) public lastCall;
+    // Functions as re-entrancy protection and more.
+    // Mapping down below with other update variables.
     modifier oncePerTx {
         require(block.timestamp > lastCall[tx.origin], "May only call this contract once per transaction.");
         lastCall[tx.origin] = block.timestamp;
@@ -227,7 +227,7 @@ contract arNXMVault is Ownable {
         // This will unstake from all unstaking protocols
         uint256 unstaked = _unstakeNxm(_lastId);
 
-        startProtocol = (startProtocol + bucketSize) % protocols.length;
+        startProtocol = startProtocol + bucketSize >= protocols.length ? 0 : startProtocol + bucketSize;
         if (startProtocol < checkpointProtocol) startProtocol = checkpointProtocol;
         lastRestake = block.timestamp;
 
@@ -872,4 +872,7 @@ contract arNXMVault is Ownable {
     // Individual percent to unstake.
     uint256[] public unstakePercents;
     
+    // Last time an EOA has called this contract.
+    mapping (address => uint256) public lastCall;
+
 }
