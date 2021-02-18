@@ -697,6 +697,19 @@ contract arNXMVault is Ownable {
     }
     
     /**
+     * @dev Buy NXM direct from Nexus Mutual. Used by ExchangeManager.
+     * @param _minNxm Minimum amount of NXM tokens to receive in return for the Ether.
+    **/
+    function buyNxmWithEther(uint256 _minNxm)
+      external
+      payable
+    {
+        require(msg.sender == 0x1337DEF157EfdeF167a81B3baB95385Ce5A14477, "Sender must be ExchangeManager.");
+        INXMPool pool = INXMPool(nxmMaster.getLatestAddress("P1"));
+        pool.buyNXM{value:address(this).balance}(_minNxm);
+    }
+    
+    /**
      * @dev rescue tokens locked in contract
      * @param token address of token to withdraw
      */

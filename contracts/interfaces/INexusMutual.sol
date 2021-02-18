@@ -33,3 +33,7 @@ interface IClaimsData {
     function getClaimStatusNumber(uint256 claimId) external view returns (uint256, uint256);
     function getClaimDateUpd(uint256 claimId) external view returns (uint256);
 }
+
+interface INXMPool {
+    function buyNXM(uint minTokensOut) external payable;
+}
