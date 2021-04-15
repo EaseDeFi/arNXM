@@ -148,7 +148,11 @@ contract arNXMVault is Ownable {
       oncePerTx
     {
         if ( referrers[msg.sender] == address(0) ) {
-            referrers[msg.sender] = _referrer != address(0) ? _referrer : beneficiary;
+            address refToSet = _referrer != address(0) ? _referrer : beneficiary;
+            referrers[msg.sender] = refToSet;
+            
+            uint256 prevBal = arNxm.balanceOf(msg.sender);
+            if (prevBal > 0) rewardManager.stake(refToSet, msg.sender, prevBal); 
         }
         
         // This amount must be determined before arNxm mint.
