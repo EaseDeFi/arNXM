@@ -100,6 +100,8 @@ describe('arnxm', function(){
     await nxm.nxm.connect(owner).transfer(userAddress, AMOUNT.mul(1000)); 
     await nxm.nxm.connect(user).approve(wNXM.address, AMOUNT.mul(1000));
     await nxm.nxm.connect(owner).approve(wNXM.address, AMOUNT.mul(1000));
+
+    await arNXMVault.connect(owner).changeWithdrawDelay(86400*2);
   });
 
   describe('Shield mining rewards', function(){
@@ -606,7 +608,7 @@ describe('arnxm', function(){
     });
   });
 
-  describe("#withdraw", function () {
+  describe.only("#withdraw", function () {
     beforeEach(async function () {
       await wNXM.connect(user).wrap(AMOUNT.mul(2));
       await wNXM.connect(owner).wrap(AMOUNT.mul(2));
@@ -619,9 +621,15 @@ describe('arnxm', function(){
 
       // Mimicking the contract having received rewards.
       await nxm.nxm.connect(owner).transfer(arNXMVault.address, AMOUNT);
+      const beforeNXMBalance = await nxm.nxm.balanceOf(arNXMVault.address);
+      const beforeRatioAR_NXM = await arNXMVault.nxmValue("1000000000000000000");
+      const beforeRatioNXM_AR = await arNXMVault.arNxmValue("1000000000000000000");
       await arNXMVault.connect(user).withdraw(AMOUNT, true);
+      //expect(await arNXMVault.nxmValue("1000000000000000000")).to.equal(beforeRatioAR_NXM);
+      expect(await arNXMVault.arNxmValue("1000000000000000000")).to.equal(beforeRatioNXM_AR);
 
       const fee = AMOUNT.mul(2).mul(25).div(1000);
+      expect(await nxm.nxm.balanceOf(arNXMVault.address)).to.equal(beforeNXMBalance.sub(AMOUNT.mul(2)).add(fee));
       expect(await wNXM.balanceOf(userAddress)).to.equal(
         AMOUNT.mul(3).sub(fee)
       );
@@ -638,23 +646,30 @@ describe('arnxm', function(){
       // Mimicking the contract having received rewards.
       await nxm.nxm.connect(owner).transfer(arNXMVault.address, AMOUNT);
       await arNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      let beforeRatioAR_NXM = await arNXMVault.nxmValue("1000000000000000000");
+      let beforeRatioNXM_AR = await arNXMVault.arNxmValue("1000000000000000000");
+      await expect(arNXMVault.connect(user).withdraw(AMOUNT.add(100), false)).to.be.reverted;
       await arNXMVault.connect(user).withdraw(AMOUNT, false);
+      expect(await arNXMVault.nxmValue("1000000000000000000")).to.equal(beforeRatioAR_NXM);
+      expect(await arNXMVault.arNxmValue("1000000000000000000")).to.equal(beforeRatioNXM_AR);
 
       expect(await arNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT);
-      expect(await arNXMVault.pendingWithdrawal(user.getAddress())).to.equal(AMOUNT);
+      expect((await arNXMVault.withdrawals(user.getAddress())).arAmount).to.equal(AMOUNT);
       let timestamp = await getTimestamp();
-      expect(await arNXMVault.lastRequestTime(user.getAddress())).to.equal(timestamp);
+      expect((await arNXMVault.withdrawals(user.getAddress())).requestTime).to.equal(timestamp);
 
       await expect(
-        arNXMVault.connect(user).withdrawRequested()
+        arNXMVault.connect(user).withdrawFinalize()
       ).to.be.revertedWith("Not ready to withdraw");
       await expect(
-        arNXMVault.connect(owner).withdrawRequested()
+        arNXMVault.connect(owner).withdrawFinalize()
       ).to.be.revertedWith("No pending amount to withdraw");
 
       await increase(86400 * 2 + 1);
-      await arNXMVault.connect(user).withdrawRequested();
-      expect(await arNXMVault.pendingWithdrawal(user.getAddress())).to.equal('0');
+      await arNXMVault.connect(user).withdrawFinalize();
+      //expect(await arNXMVault.nxmValue("1000000000000000000")).to.equal(beforeRatioAR_NXM);
+      //expect(await arNXMVault.arNxmValue("1000000000000000000")).to.equal(beforeRatioNXM_AR);
+      expect((await arNXMVault.withdrawals(user.getAddress())).arAmount).to.equal('0');
       expect(await arNXM.balanceOf(arNXMVault.address)).to.equal(0);
       expect(await wNXM.balanceOf(userAddress)).to.equal(AMOUNT.mul(3));
     });

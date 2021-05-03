@@ -200,7 +200,7 @@ describe('ReferralRewards', function(){
         await caller.executeETH(temp.address);
       });
     });
-    describe.only('#testBug()', function(){
+    describe('#testBug()', function(){
       it("should fuck up balances if user is mean", async function(){
         // Referrer has original weight from referring someone else.
         await referralRewards.connect(stakeController).stake(user.getAddress(), owner.getAddress(), amount);

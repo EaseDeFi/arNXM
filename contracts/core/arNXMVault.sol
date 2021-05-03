@@ -193,10 +193,10 @@ contract arNXMVault is Ownable {
 
         // This amount must be determined before arNxm burn.
         uint256 nAmount = nxmValue(_arAmount);
-        require(totalPending.add(nAmount) <= nxm.balanceOf(address(this)), "Not enough NXM available for withdrawal.");
+        require(totalPending.add(nAmount) <= nxm.balanceOf(address(this)), "Not enough NXM available for witthdrawal.");
 
         if (_payFee) {
-            uint256 fee = nAmount.mul(withdrawFee).div(DENOMINATOR);
+            uint256 fee = nAmount.mul(withdrawFee).div(1000);
             uint256 disbursement = nAmount.sub(fee);
 
             // Burn also decreases sender's referral balance through alertTransfer.
@@ -978,6 +978,6 @@ contract arNXMVault is Ownable {
     // Total amount of withdrawals pending.
     uint256 public totalPending;
 
-    mapping (address => WithdrawalRequest) withdrawals;
+    mapping (address => WithdrawalRequest) public withdrawals;
 
 }
