@@ -91,6 +91,7 @@ describe('arnxm', function(){
     // For proxy
     await arNXMVault.connect(owner).changeProtocols(protocolsAddress,[100,100,100,100],[],0);
     await arNXMVault.connect(owner).changeBucketSize(2);
+    await arNXMVault.connect(owner).changeWithdrawFee(0);
     
     await referralRewards.initialize(arNXM.address, arNXMVault.address);
     await nxm.registerUser(userAddress);
@@ -605,34 +606,57 @@ describe('arnxm', function(){
     });
   });
 
-  describe('#withdraw', function(){
-    beforeEach(async function(){
+  describe("#withdraw", function () {
+    beforeEach(async function () {
       await wNXM.connect(user).wrap(AMOUNT.mul(2));
       await wNXM.connect(owner).wrap(AMOUNT.mul(2));
     });
 
-    it('should withdraw correct amount of wNXM and decrease referrer stake', async function(){
+    it("should withdraw correct amount of wNXM and decrease referrer stake and take fee", async function () {
+      await arNXMVault.connect(owner).changeWithdrawFee(25);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
 
       // Mimicking the contract having received rewards.
       await nxm.nxm.connect(owner).transfer(arNXMVault.address, AMOUNT);
-      await arNXMVault.connect(user).withdraw(AMOUNT);
+      await arNXMVault.connect(user).withdraw(AMOUNT, true);
 
-      expect(await wNXM.balanceOf(userAddress)).to.equal(AMOUNT.mul(3));
-      expect(await referralRewards.balanceOf(ownerAddress)).to.equal(ether('0'))
+      const fee = AMOUNT.mul(2).mul(25).div(1000);
+      expect(await wNXM.balanceOf(userAddress)).to.equal(
+        AMOUNT.mul(3).sub(fee)
+      );
+      expect(await referralRewards.balanceOf(ownerAddress)).to.equal(
+        ether("0")
+      );
     });
 
-    it('should give correct total assets under management', async function(){
-      expect(await arNXMVault.aum()).to.equal(0);
-
+    it("should request withdraw", async function () {
+      await arNXMVault.connect(owner).changeWithdrawFee(25);
       await wNXM.connect(user).approve(arNXMVault.address, AMOUNT);
       await arNXMVault.connect(user).deposit(AMOUNT, ownerAddress, false);
-      expect(await arNXMVault.aum()).to.equal(AMOUNT);
 
       // Mimicking the contract having received rewards.
-      await nxm.nxm.connect(user).transfer(arNXMVault.address, AMOUNT);
-      expect(await arNXMVault.aum()).to.equal(AMOUNT.mul(2));
+      await nxm.nxm.connect(owner).transfer(arNXMVault.address, AMOUNT);
+      await arNXM.connect(user).approve(arNXMVault.address, AMOUNT);
+      await arNXMVault.connect(user).withdraw(AMOUNT, false);
+
+      expect(await arNXM.balanceOf(arNXMVault.address)).to.equal(AMOUNT);
+      expect(await arNXMVault.pendingWithdrawal(user.getAddress())).to.equal(AMOUNT);
+      let timestamp = await getTimestamp();
+      expect(await arNXMVault.lastRequestTime(user.getAddress())).to.equal(timestamp);
+
+      await expect(
+        arNXMVault.connect(user).withdrawRequested()
+      ).to.be.revertedWith("Not ready to withdraw");
+      await expect(
+        arNXMVault.connect(owner).withdrawRequested()
+      ).to.be.revertedWith("No pending amount to withdraw");
+
+      await increase(86400 * 2 + 1);
+      await arNXMVault.connect(user).withdrawRequested();
+      expect(await arNXMVault.pendingWithdrawal(user.getAddress())).to.equal('0');
+      expect(await arNXM.balanceOf(arNXMVault.address)).to.equal(0);
+      expect(await wNXM.balanceOf(userAddress)).to.equal(AMOUNT.mul(3));
     });
   });
 
@@ -650,18 +674,18 @@ describe('arnxm', function(){
     });
 
     it('should pause if claim has recently happened', async function(){
-      await expect(arNXMVault.connect(user).withdraw(AMOUNT)).to.be.revertedWith("Withdrawals are temporarily paused.");
+      await expect(arNXMVault.connect(user).withdraw(AMOUNT, true)).to.be.revertedWith("Withdrawals are temporarily paused.");
     });
 
     it('should unpause after 10 days', async function(){
       await increase(86400 * 10 + 1);
-      await arNXMVault.connect(user).withdraw(AMOUNT);
+      await arNXMVault.connect(user).withdraw(AMOUNT, true);
     });
 
     it('should not be able to pause again after 10 days', async function(){
       await increase(86400 * 10 + 1);
       await arNXMVault.connect(user).pauseWithdrawals(1);
-      await arNXMVault.connect(user).withdraw(AMOUNT);
+      await arNXMVault.connect(user).withdraw(AMOUNT, true);
     });
 
   });
