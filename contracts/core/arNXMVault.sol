@@ -597,11 +597,11 @@ contract arNXMVault is Ownable {
         uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
-        if (reserveAmount < balance) {
+        if (reserveAmount.add(totalPending) < balance) {
             IPooledStaking pool = IPooledStaking( _getPool() );
 
             // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount);
+            toStake = balance.sub(reserveAmount.add(totalPending));
             if (toStake < 20 ether) return 0;
 
             for (uint256 i = 0; i < protocols.length; i++) {
@@ -638,11 +638,11 @@ contract arNXMVault is Ownable {
         uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
-        if (reserveAmount < balance) {
+        if (reserveAmount.add(totalPending) < balance) {
             IPooledStaking pool = IPooledStaking( _getPool() );
             
             // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount);
+            toStake = balance.sub(reserveAmount.add(totalPending));
             if (toStake < 20 ether) return 0;
                         
             uint256 startPos = startProtocol;
