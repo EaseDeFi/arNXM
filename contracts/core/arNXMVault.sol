@@ -86,7 +86,7 @@ contract arNXMVault is Ownable {
     mapping (address => address) public referrers;
 
     event Deposit(address indexed user, uint256 nAmount, uint256 arAmount, uint256 timestamp);
-    event WithdrawRequested(address indexed user, uint256 arAmount, uint256 pendingWithdrawal);
+    event WithdrawRequested(address indexed user, uint256 arAmount, uint256 nAmount, uint256 requestTime, uint256 withdrawTime);
     event Withdrawal(address indexed user, uint256 nAmount, uint256 arAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
     event NxmReward(uint256 reward, uint256 timestamp, uint256 totalAum);
@@ -215,7 +215,7 @@ contract arNXMVault is Ownable {
                                         prevWithdrawal.arAmount + uint104(_arAmount)
                                       );
 
-            emit WithdrawRequested(msg.sender, _arAmount, nAmount);
+            emit WithdrawRequested(msg.sender, _arAmount, nAmount, block.timestamp, block.timestamp.add(withdrawDelay));
         }
     }
 
