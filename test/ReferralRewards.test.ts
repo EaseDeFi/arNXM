@@ -200,5 +200,30 @@ describe('ReferralRewards', function(){
         await caller.executeETH(temp.address);
       });
     });
+    describe('#testBug()', function(){
+      it("should fuck up balances if user is mean", async function(){
+        // Referrer has original weight from referring someone else.
+        await referralRewards.connect(stakeController).stake(user.getAddress(), owner.getAddress(), amount);
+        let balance = await referralRewards.balanceOf(user.getAddress());
+        console.log("Referrer weight starts with",balance.toString())
+
+        // Malicious actor originally buys on an exchange with no referrer.
+        await rewardToken.connect(owner).transfer(referral.getAddress(), ether("3"));
+
+        // Mal then gets referred with a small amount.
+        await referralRewards.connect(stakeController).stake(user.getAddress(), referral.getAddress(), 1);
+        balance = await referralRewards.balanceOf(user.getAddress());
+        console.log("After malicious actor is referred, weighting is",balance.toString())
+
+        // User then transfers away, taking away referrer's balance
+        await rewardToken.connect(referral).transfer(owner.getAddress(), ether("3"));
+        // Very much faking it here but I don't feel like adding full arNXM contracts.
+        await referralRewards.connect(stakeController).withdraw(user.getAddress(), referral.getAddress(), ether("3"));
+
+        // All of referrer's weight (including previous referrals) is lost.
+        balance = await referralRewards.balanceOf(user.getAddress());
+        console.log("After transferred away, referrer ends with weighting of",balance.toString());
+      });
+    });
   });
 });

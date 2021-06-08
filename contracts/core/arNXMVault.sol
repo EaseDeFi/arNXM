@@ -18,7 +18,7 @@ contract arNXMVault is Ownable {
     
     using SafeMath for uint;
     using SafeERC20 for IERC20;
-    
+
     uint256 constant private DENOMINATOR = 1000;
     
     // Amount of time between 
@@ -49,7 +49,7 @@ contract arNXMVault is Ownable {
     
     // Percent of staking rewards that referrers get.
     uint256 public referPercent;
-    
+
     // Timestamp of when the last restake took place--7 days between each.
     uint256 public lastRestake;
     
@@ -64,6 +64,12 @@ contract arNXMVault is Ownable {
     
     // Protocols being actively used in staking or unstaking.
     address[] private activeProtocols;
+
+    struct WithdrawalRequest {
+        uint48 requestTime;
+        uint104 nAmount;
+        uint104 arAmount;
+    }
 
     // Nxm tokens.
     IERC20 public wNxm;
@@ -80,6 +86,7 @@ contract arNXMVault is Ownable {
     mapping (address => address) public referrers;
 
     event Deposit(address indexed user, uint256 nAmount, uint256 arAmount, uint256 timestamp);
+    event WithdrawRequested(address indexed user, uint256 arAmount, uint256 nAmount, uint256 requestTime, uint256 withdrawTime);
     event Withdrawal(address indexed user, uint256 nAmount, uint256 arAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
     event NxmReward(uint256 reward, uint256 timestamp, uint256 totalAum);
@@ -131,7 +138,7 @@ contract arNXMVault is Ownable {
         beneficiary = msg.sender;
         restakePeriod = 3 days;
         rewardDuration = 9 days;
-        
+
         // Approve to wrap and send funds to reward manager.
         _approveNxm(_wNxm);
         arNxm.approve( _rewardManager, uint256(-1) );
@@ -149,6 +156,12 @@ contract arNXMVault is Ownable {
     {
         if ( referrers[msg.sender] == address(0) ) {
             referrers[msg.sender] = _referrer != address(0) ? _referrer : beneficiary;
+            address refToSet = _referrer != address(0) ? _referrer : beneficiary;
+            referrers[msg.sender] = refToSet;
+
+            // A wallet with a previous arNXM balance would be able to subtract referral weight that it never added.
+            uint256 prevBal = arNxm.balanceOf(msg.sender);
+            if (prevBal > 0) rewardManager.stake(refToSet, msg.sender, prevBal); 
         }
         
         // This amount must be determined before arNxm mint.
@@ -170,8 +183,9 @@ contract arNXMVault is Ownable {
     /**
      * @dev Withdraw an amount of wNxm or NXM by burning arNxm.
      * @param _arAmount The amount of arNxm to burn for the wNxm withdraw.
+     * @param _payFee Flag to pay fee to withdraw without delay.
     **/
-    function withdraw(uint256 _arAmount)
+    function withdraw(uint256 _arAmount, bool _payFee)
       external
       oncePerTx
     {
@@ -179,13 +193,56 @@ contract arNXMVault is Ownable {
 
         // This amount must be determined before arNxm burn.
         uint256 nAmount = nxmValue(_arAmount);
-        
+        require(totalPending.add(nAmount) <= nxm.balanceOf(address(this)), "Not enough NXM available for witthdrawal.");
+
+        if (_payFee) {
+            uint256 fee = nAmount.mul(withdrawFee).div(1000);
+            uint256 disbursement = nAmount.sub(fee);
+
+            // Burn also decreases sender's referral balance through alertTransfer.
+            arNxm.burn(msg.sender, _arAmount);
+            _wrapNxm(disbursement);
+            wNxm.safeTransfer(msg.sender, disbursement);
+            
+            emit Withdrawal(msg.sender, nAmount, _arAmount, block.timestamp);
+        } else {
+            totalPending = totalPending.add(nAmount);
+            arNxm.safeTransferFrom(msg.sender, address(this), _arAmount);
+            WithdrawalRequest memory prevWithdrawal = withdrawals[msg.sender];
+            withdrawals[msg.sender] = WithdrawalRequest(
+                                        uint48(block.timestamp), 
+                                        prevWithdrawal.nAmount + uint104(nAmount), 
+                                        prevWithdrawal.arAmount + uint104(_arAmount)
+                                      );
+
+            emit WithdrawRequested(msg.sender, _arAmount, nAmount, block.timestamp, block.timestamp.add(withdrawDelay));
+        }
+    }
+
+    /**
+     * @dev Withdraw from request
+    **/
+    function withdrawFinalize()
+      external
+      oncePerTx
+    {
+        WithdrawalRequest memory withdrawal = withdrawals[msg.sender];
+        uint256 nAmount = uint256(withdrawal.nAmount);
+        uint256 arAmount = uint256(withdrawal.arAmount);
+        uint256 requestTime = uint256(withdrawal.requestTime);
+
+        require(block.timestamp.sub(withdrawalsPaused) > pauseDuration, "Withdrawals are temporarily paused.");
+        require(requestTime.add(withdrawDelay) <= block.timestamp, "Not ready to withdraw");
+        require(nAmount > 0, "No pending amount to withdraw");
+
         // Burn also decreases sender's referral balance through alertTransfer.
-        arNxm.burn(msg.sender, _arAmount);
+        arNxm.burn(address(this), arAmount);
         _wrapNxm(nAmount);
         wNxm.safeTransfer(msg.sender, nAmount);
+        delete withdrawals[msg.sender];
+        totalPending = totalPending.sub(nAmount);
 
-        emit Withdrawal(msg.sender, nAmount, _arAmount, block.timestamp);
+        emit Withdrawal(msg.sender, nAmount, arAmount, block.timestamp);
     }
 
     /**
@@ -540,11 +597,11 @@ contract arNXMVault is Ownable {
         uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
-        if (reserveAmount < balance) {
+        if (reserveAmount.add(totalPending) < balance) {
             IPooledStaking pool = IPooledStaking( _getPool() );
 
             // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount);
+            toStake = balance.sub(reserveAmount.add(totalPending));
             if (toStake < 20 ether) return 0;
 
             for (uint256 i = 0; i < protocols.length; i++) {
@@ -581,11 +638,11 @@ contract arNXMVault is Ownable {
         uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
-        if (reserveAmount < balance) {
+        if (reserveAmount.add(totalPending) < balance) {
             IPooledStaking pool = IPooledStaking( _getPool() );
             
             // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount);
+            toStake = balance.sub(reserveAmount.add(totalPending));
             if (toStake < 20 ether) return 0;
                         
             uint256 startPos = startProtocol;
@@ -773,6 +830,29 @@ contract arNXMVault is Ownable {
     }
     
     /**
+     * @dev Owner may change the withdraw fee.
+     * @param _withdrawFee The fee of withdraw.
+    **/
+    function changeWithdrawFee(uint256 _withdrawFee)
+      external
+      onlyOwner
+    {
+        require(_withdrawFee <= DENOMINATOR, "Cannot take more than 100% of withdraw");
+        withdrawFee = _withdrawFee;
+    }
+
+    /**
+     * @dev Owner may change the withdraw delay.
+     * @param _withdrawDelay Withdraw delay.
+    **/
+    function changeWithdrawDelay(uint256 _withdrawDelay)
+      external
+      onlyOwner
+    {
+        withdrawDelay = _withdrawDelay;
+    }
+
+    /**
      * @dev Change the percent of rewards that are given for administration of the contract.
      * @param _adminPercent The percent of rewards to be given for administration (10 == 1%, 1000 == 100%)
     **/
@@ -783,7 +863,6 @@ contract arNXMVault is Ownable {
         require(_adminPercent <= 500, "Cannot give admin more than 50% of rewards.");
         adminPercent = _adminPercent;
     }
-
 
     /**
      * @dev Owner may change protocols that we stake for and remove any.
@@ -887,5 +966,18 @@ contract arNXMVault is Ownable {
     
     // Last time an EOA has called this contract.
     mapping (address => uint256) public lastCall;
+
+    ///// Third update additions. /////
+
+    // Withdraw fee to withdraw immediately.
+    uint256 public withdrawFee;
+
+    // Delay to withdraw
+    uint256 public withdrawDelay;
+
+    // Total amount of withdrawals pending.
+    uint256 public totalPending;
+
+    mapping (address => WithdrawalRequest) public withdrawals;
 
 }
