@@ -87,6 +87,7 @@ contract arNXMVault is Ownable {
 
     event Deposit(address indexed user, uint256 nAmount, uint256 arAmount, uint256 timestamp);
     event WithdrawRequested(address indexed user, uint256 arAmount, uint256 nAmount, uint256 requestTime, uint256 withdrawTime);
+    event WithdrawCancelled(address indexed user, uint256 arAmount, uint256 cancelTime);
     event Withdrawal(address indexed user, uint256 nAmount, uint256 arAmount, uint256 timestamp);
     event Restake(uint256 withdrawn, uint256 unstaked, uint256 staked, uint256 totalAum, uint256 timestamp);
     event NxmReward(uint256 reward, uint256 timestamp, uint256 totalAum);
@@ -220,7 +221,7 @@ contract arNXMVault is Ownable {
     }
 
     /**
-     * @dev Withdraw from request
+     * @dev Finalize a withdrawal.
     **/
     function withdrawFinalize()
       external
@@ -243,6 +244,27 @@ contract arNXMVault is Ownable {
         totalPending = totalPending.sub(nAmount);
 
         emit Withdrawal(msg.sender, nAmount, arAmount, block.timestamp);
+    }
+
+    /**
+     * @dev Allow a user to cancel a pending withdrawal.
+    **/
+    function cancelWithdrawal()
+      external
+      oncePerTx
+    {
+        WithdrawalRequest memory withdrawal = withdrawals[msg.sender];
+        uint256 arAmount = uint256(withdrawal.arAmount);
+        uint256 nAmount = uint256(withdrawal.nAmount);
+        uint256 requestTime = uint256(withdrawal.requestTime);
+        
+        require(arAmount > 0, "No active withdrawal.");
+        require(requestTime > block.timestamp.sub(86400), "Cancellation must be made within 1 day.");
+        
+        delete withdrawals[msg.sender];
+        arNxm.safeTransfer(msg.sender, arAmount);
+        totalPending = totalPending.sub(nAmount);
+        emit WithdrawCancelled(msg.sender, arAmount, block.timestamp);
     }
 
     /**
