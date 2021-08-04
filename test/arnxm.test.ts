@@ -198,7 +198,7 @@ describe('arnxm', function(){
       await arNXMVault.connect(owner).restake(await getIndex());
     });
     
-    it.only('should fail if current pending request + reserve amount < balance', async function(){
+    it('should fail if current pending request + reserve amount < balance', async function(){
       await increase(86400 * 3);
       const reserve = await arNXMVault.reserveAmount();
       const nxmBalance = await nxm.nxm.balanceOf(arNXMVault.address);
@@ -520,7 +520,7 @@ describe('arnxm', function(){
     it('should fail if msg.sender is not owner', async function(){
       await expect(arNXMVault.connect(user).stakeNxmManual(protocolsAddress,[1,1,1,1])).to.be.reverted;
     });
-    it.only('should fail if current pending request + reserve amount < balance', async function(){
+    it('should fail if current pending request + reserve amount < balance', async function(){
       await increase(86400 * 3);
       const reserve = await arNXMVault.reserveAmount();
       const nxmBalance = await nxm.nxm.balanceOf(arNXMVault.address);
@@ -629,7 +629,7 @@ describe('arnxm', function(){
     });
   });
 
-  describe.only("#withdraw", function () {
+  describe("#withdraw", function () {
     beforeEach(async function () {
       await wNXM.connect(user).wrap(AMOUNT.mul(2));
       await wNXM.connect(owner).wrap(AMOUNT.mul(2));
