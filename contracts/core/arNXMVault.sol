@@ -596,34 +596,13 @@ contract arNXMVault is Ownable {
         _approveNxm(_getTokenController());
         uint256 balance = nxm.balanceOf( address(this) );
 
-        // If we do need to restake funds...
-        if (reserveAmount.add(totalPending) < balance) {
-            IPooledStaking pool = IPooledStaking( _getPool() );
+        IPooledStaking pool = IPooledStaking( _getPool() );
 
-            // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount.add(totalPending));
-            if (toStake < 20 ether) return 0;
-
-            for (uint256 i = 0; i < protocols.length; i++) {
-                address protocol = protocols[i];
-                uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
-
-                for (uint256 j = 0; j < _protocols.length; j++) {
-                    if (protocol == _protocols[j]){
-                        stakeAmount += _stakeAmounts[j];
-                        break;
-                    }
-                }
-                if (stakeAmount == 0) continue;
-
-                amounts.push(stakeAmount);
-                activeProtocols.push(protocol);
-            }
-
-            pool.depositAndStake(toStake, activeProtocols, amounts);
-            delete amounts;
-            delete activeProtocols;
+        for (uint256 i = 0; i < protocols.length; i++) {
+            toStake += _stakeAmounts[i];
         }
+
+        pool.depositAndStake(toStake, _protocols, _stakeAmounts);
     }
 
     /**

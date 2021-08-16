@@ -38,6 +38,12 @@ describe.only('arnxm', function(){
     arNXMVault = await ethers.getContractAt("arNXMVault", arnxm_mainnet);
     nxm = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", nxm_mainnet);
     pool = await ethers.getContractAt("contracts/interfaces/INexusMutual.sol:IPooledStaking", pool_mainnet);
+    const VaultFactory = await ethers.getContractFactory("arNXMVault");
+    const newVault = await VaultFactory.deploy();
+    const ProxyFactory = await ethers.getContractFactory("OwnedUpgradeabilityProxy");
+    const toUpdate = await ProxyFactory.attach(arNXMVault.address);
+    await toUpdate.connect(owner).upgradeTo(newVault.address);
+
     const oldProtocols = await pool.stakerContractsArray(arnxm_mainnet);
     //first fill in the old protocols
     for(let i = 0; i < oldProtocols.length; i++) {
