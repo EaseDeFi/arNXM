@@ -20,7 +20,8 @@
     "@openzeppelin/contracts": "^3.2.0",
     "bignumber.js": "9.0.1",
     "ethereumjs-util": "7.0.5",
-    "hardhat": "^2.6.0"
+    "hardhat": "^2.6.0",
+    "hardhat-log-remover": "^2.0.2"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.0",

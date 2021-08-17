@@ -7,7 +7,6 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
-import 'hardhat/console.sol';
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM or NXM in Nexus Mutual while maintaining your liquidity.
@@ -594,8 +593,6 @@ contract arNXMVault is Ownable {
       internal
     returns (uint256 toStake)
     {
-        console.log("LENGTH PARAM");
-        console.logUint(_protocols.length);
         _approveNxm(_getTokenController());
         uint256 balance = nxm.balanceOf( address(this) );
 
@@ -625,8 +622,6 @@ contract arNXMVault is Ownable {
                 activeProtocols.push(protocol);
             }
 
-            console.log("LENGTH");
-            console.logUint(activeProtocols.length);
             pool.depositAndStake(toStake, activeProtocols, amounts);
             delete amounts;
             delete activeProtocols;
