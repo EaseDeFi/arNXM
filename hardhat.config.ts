@@ -46,7 +46,7 @@ export default {
       },
       forking: {
         url: "https://eth-mainnet.alchemyapi.io/v2/90dtUWHmLmwbYpvIeC53UpAICALKyoIu",
-        blockNumber: 12948718
+        blockNumber: 13043782
       },
       allowUnlimitedContractSize: true,
     },

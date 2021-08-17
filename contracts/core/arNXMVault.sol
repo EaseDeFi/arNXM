@@ -7,6 +7,7 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
+import 'hardhat/console.sol';
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM or NXM in Nexus Mutual while maintaining your liquidity.
@@ -593,16 +594,43 @@ contract arNXMVault is Ownable {
       internal
     returns (uint256 toStake)
     {
+        console.log("LENGTH PARAM");
+        console.logUint(_protocols.length);
         _approveNxm(_getTokenController());
         uint256 balance = nxm.balanceOf( address(this) );
 
-        IPooledStaking pool = IPooledStaking( _getPool() );
+        // If we do need to restake funds...
+        if (reserveAmount.add(totalPending) < balance) {
+            IPooledStaking pool = IPooledStaking( _getPool() );
 
-        for (uint256 i = 0; i < protocols.length; i++) {
-            toStake += _stakeAmounts[i];
+            // Determine how much to stake. Can't stake less than 20 NXM.
+            toStake = balance.sub(reserveAmount.add(totalPending));
+            if (toStake < 20 ether) return 0;
+
+            for (uint256 i = 0; i < _protocols.length; i++) {
+                address protocol = _protocols[i];
+                uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
+
+                for (uint256 j = 0; j < protocols.length; j++) {
+                    if (protocol == protocols[j]){
+                        stakeAmount += _stakeAmounts[j];
+                        break;
+                    }
+                }
+                if (stakeAmount == 0) {
+                    continue;
+                }
+
+                amounts.push(stakeAmount);
+                activeProtocols.push(protocol);
+            }
+
+            console.log("LENGTH");
+            console.logUint(activeProtocols.length);
+            pool.depositAndStake(toStake, activeProtocols, amounts);
+            delete amounts;
+            delete activeProtocols;
         }
-
-        pool.depositAndStake(toStake, _protocols, _stakeAmounts);
     }
 
     /**
