@@ -76,19 +76,9 @@ describe.only('arnxm', function(){
         toBe.amounts.push(BigNumber.from(desired.amounts[i]));
       }
     }
-    for(let i = 0; i<oldProtocols.length; i++){
-      console.log(oldProtocols[i]);
-      console.log(toBe.protocols[i]);
-    }
-    console.log(oldProtocols.length);
-    console.log(toBe.protocols.length);
-    console.log(unstake.protocols.length);
-    console.log("BALANCE");
-    console.log(await nxm.balanceOf(arNXMVault.address));
-    console.log("pending");
-    console.log(await arNXMVault.totalPending());
-    await arNXMVault.connect(owner).changeProtocols(toBe.protocols, unstake.unstakePercents, unstake.removedProtocols, lastId);
-    await arNXMVault.connect(owner).changeReserveAmount(0);
+    const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, unstake.unstakePercents, unstake.removedProtocols, lastId]);
+    console.log(data);
+    await arNXMVault.connect(owner).changeProtocols(toBe.protocols, unstake.unstakePercents, unstake.removedProtocols, 0);
   });
 
   it("should manual stake", async function(){
