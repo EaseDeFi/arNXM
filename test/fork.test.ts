@@ -69,15 +69,31 @@ describe.only('arnxm', function(){
           desired.amounts.splice(idx, 1);
         }
         desired.protocols.splice(idx, 1);
+        console.log(desired.protocols);
       }
     }
     // then fill new protocols
+    console.log(desired.protocols);
     for(let i = 0; i< desired.protocols.length; i++){
-      if(desired.amounts.length > i){ 
-        toBe.protocols.push(desired.protocols[i]);
-        toBe.amounts.push(BigNumber.from(desired.amounts[i]));
-        toBe.unstakePercents.push(BigNumber.from(0));
+      const idx = toBe.protocols.findIndex((e) => e.toLowerCase() == desired.protocols[i].toLowerCase());
+      console.log(toBe.protocols);
+      console.log(desired.protocols);
+      if(idx == -1) {
+        console.log("HUH");
+        if(desired.amounts.length > i){ 
+          toBe.protocols.push(desired.protocols[i]);
+          toBe.amounts.push(BigNumber.from(desired.amounts[i]));
+          toBe.unstakePercents.push(BigNumber.from(0));
+        } else {
+          toBe.protocols.push(desired.protocols[i]);
+          toBe.amounts.push(BigNumber.from(0));
+          toBe.unstakePercents.push(BigNumber.from(70));
+        }
       }
+    }
+
+    for(let i = 0; i< toBe.protocols.length; i++){
+      console.log(toBe.protocols[i]);
     }
     const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
     await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, 0);
