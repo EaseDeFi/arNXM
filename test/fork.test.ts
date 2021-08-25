@@ -6,6 +6,10 @@ const arnxm_mainnet = "0x1337DEF1FC06783D4b03CB8C1Bf3EBf7D0593FC4";
 const gov_mainnet = "0x1f28ed9d4792a567dad779235c2b766ab84d8e33";
 const nxm_whale = "0x598Dbe6738E0AcA4eAbc22feD2Ac737dbd13Fb8F";
 const nxm_mainnet = "0xd7c49cee7e9188cca6ad8ff264c1da2e69d4cf3b";
+
+BigNumber.prototype.toJSON = function toJSON(key) {
+    return this.toString();
+};
 describe.only('arnxm', function(){
   let arNXMVault : Contract;
   let pool : Contract;
@@ -119,13 +123,24 @@ describe.only('arnxm', function(){
       console.log(toBe.protocols[i]);
     }
     const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
-    console.log(data);
+    console.log("arg0");
+    console.log(toBe.protocols);
+    console.log("arg1");
+    console.log(JSON.stringify(toBe.unstakePercents, null,2));
+    console.log("]");
+    console.log("arg2");
+    console.log(unstake.removedProtocols);
+    console.log("arg3");
+    console.log(lastId.toString());
     await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, 0);
   });
 
   it("should manual stake", async function(){
     const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
-    console.log(res);
+    console.log("arg0");
+    console.log(toBe.protocols);
+    console.log("arg1");
+    console.log(JSON.stringify(toBe.amounts, null, 2));
     await arNXMVault.connect(owner).stakeNxmManual(toBe.protocols, toBe.amounts);
   });
 });
