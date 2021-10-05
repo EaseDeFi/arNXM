@@ -653,7 +653,6 @@ contract arNXMVault is Ownable {
 
                 uint256 stake = pool.stakerContractStake(address(this), protocol);
                 uint256 stakeAmount = i >= startPos && i < startPos + bucketSize ? toStake.add(stake) : stake;
-                if (stakeAmount == 0) continue;
 
                 amounts.push(stakeAmount);
                 activeProtocols.push(protocol);
