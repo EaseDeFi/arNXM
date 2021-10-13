@@ -530,12 +530,11 @@ contract arNXMVault is Ownable {
     returns (uint256 unstakeAmount)
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
-        uint256 start = startProtocol;
-        uint256 end = start + bucketSize > protocols.length ? protocols.length : start + bucketSize;
 
-        for (uint256 i = startProtocol; i < end; i++) {
-            uint256 unstakePercent = unstakePercents[i];
-            address unstakeProtocol = protocols[i];
+        for(uint256 i = 0; i < bucketSize; i++) {
+            uint256 index = (startProtocol + i) % protocols.length;
+            uint256 unstakePercent = unstakePercents[index];
+            address unstakeProtocol = protocols[index];
             uint256 stake = pool.stakerContractStake(address(this), unstakeProtocol);
             
             unstakeAmount = stake.mul(unstakePercent).div(DENOMINATOR);
@@ -549,7 +548,6 @@ contract arNXMVault is Ownable {
         }
         
         pool.requestUnstake(activeProtocols, amounts, _lastId);
-        
         delete amounts;
         delete activeProtocols;
     }
@@ -667,7 +665,7 @@ contract arNXMVault is Ownable {
             uint256 index = (startProtocol + i) % protocols.length;
             address protocol = protocols[index];
             uint256 curIndex = addressArrayFind(currentProtocols, protocol);
-            if(curIndex == type(uint256).max) {
+            if(curIndex == type(uint256).max && maxStake >= 20 ether) {
                 activeProtocols.push(protocol);
                 amounts.push(maxStake);
             } else {

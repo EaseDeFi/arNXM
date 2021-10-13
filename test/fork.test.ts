@@ -76,7 +76,7 @@ describe.only('arnxm', function(){
       }
     }
 
-    const lastId = await pool.lastUnstakeRequestId();
+    let lastId = await pool.lastUnstakeRequestId();
     const oldProtocols = await pool.stakerContractsArray(arnxm_mainnet);
     console.log("OLD");
     console.log(oldProtocols);
@@ -87,15 +87,15 @@ describe.only('arnxm', function(){
       if(idx === -1) {
         toBe.protocols.push(oldProtocols[i]);
         toBe.amounts.push(BigNumber.from(0));
-        toBe.unstakePercents.push(BigNumber.from(70));
+        toBe.unstakePercents.push(BigNumber.from(700));
       } else {
         toBe.protocols.push(oldProtocols[i]);
         if(desired.amounts.length <= idx) {
           toBe.amounts.push(BigNumber.from(0));
-          toBe.unstakePercents.push(BigNumber.from(70));
+          toBe.unstakePercents.push(BigNumber.from(700));
         } else {
           toBe.amounts.push(BigNumber.from(desired.amounts[idx]));
-          toBe.unstakePercents.push(BigNumber.from(70));
+          toBe.unstakePercents.push(BigNumber.from(700));
           desired.amounts.splice(idx, 1);
         }
         desired.protocols.splice(idx, 1);
@@ -122,38 +122,73 @@ describe.only('arnxm', function(){
     //}
     //const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
     //
-    console.log("CURRENT STATUS");
-    for(let i = 0; i<toBe.protocols.length; i++) {
-      console.log("Protocol : " + toBe.protocols[i]);
-      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-    }
-    await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, [], 0);
+    //console.log("CURRENT STATUS");
+    //for(let i = 0; i<toBe.protocols.length; i++) {
+    //  console.log("Protocol : " + toBe.protocols[i]);
+    //  console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+    //  console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+    //}
+    console.log("CHANGE PROTOCOL");
+    lastId = await pool.lastUnstakeRequestId();
+    await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, toBe.protocols, lastId);
+    console.log("CHANGE PROTOCOL DONE");
   });
 
   it("should manual stake", async function(){
     const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
     let lastId = await pool.lastUnstakeRequestId();
     await arNXMVault.connect(owner).restake(lastId);
-    console.log("CURRENT STATUS : after restake");
-    await increase(7 * 86400 + 1);
+    await increase(30 * 86400 + 1);
     await pool.processPendingActions(100);
-    lastId = await pool.lastUnstakeRequestId();
-    await arNXMVault.connect(owner).restake(lastId);
-    await increase(7 * 86400 + 1);
     await pool.processPendingActions(100);
-    lastId = await pool.lastUnstakeRequestId();
-    await arNXMVault.connect(owner).restake(lastId);
-    await increase(7 * 86400 + 1);
     await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    console.log("Withdrawable : ");
+    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
+    for(let i = 0; i<toBe.protocols.length; i++) {
+      console.log("Protocol : " + toBe.protocols[i]);
+      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
+    }
+    await arNXMVault.connect(owner).restake(0);
+    await increase(30 * 86400 + 1);
+    await pool.processPendingActions(100);
+    console.log("Withdrawable : ");
+    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
+    for(let i = 0; i<toBe.protocols.length; i++) {
+      console.log("Protocol : " + toBe.protocols[i]);
+      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
+    }
     lastId = await pool.lastUnstakeRequestId();
-    await arNXMVault.connect(owner).restake(lastId);
-
-    //for(let i = 0; i<toBe.protocols.length; i++) {
-    //  console.log("Protocol : " + toBe.protocols[i]);
-    //  console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-    //  console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-    //  console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
-    //}
+    await arNXMVault.connect(owner).restake(0);
+    await increase(30 * 86400 + 1);
+    await pool.processPendingActions(100000);
+    console.log("Withdrawable : ");
+    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
+    for(let i = 0; i<toBe.protocols.length; i++) {
+      console.log("Protocol : " + toBe.protocols[i]);
+      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
+    }
+    lastId = await pool.lastUnstakeRequestId();
+    await arNXMVault.connect(owner).restake(0);
+    console.log("Withdrawable : ");
+    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
+    for(let i = 0; i<toBe.protocols.length; i++) {
+      console.log("Protocol : " + toBe.protocols[i]);
+      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
+    }
   });
 });
