@@ -140,7 +140,6 @@ contract arNXMVault is Ownable {
         rewardDuration = 9 days;
 
         // Approve to wrap and send funds to reward manager.
-        _approveNxm(_wNxm);
         arNxm.approve( _rewardManager, uint256(-1) );
     }
     
@@ -593,39 +592,36 @@ contract arNXMVault is Ownable {
       internal
     returns (uint256 toStake)
     {
-        _approveNxm(_getTokenController());
         uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
-        if (reserveAmount.add(totalPending) < balance) {
-            IPooledStaking pool = IPooledStaking( _getPool() );
+        IPooledStaking pool = IPooledStaking( _getPool() );
 
-            // Determine how much to stake. Can't stake less than 20 NXM.
-            toStake = balance.sub(reserveAmount.add(totalPending));
-            if (toStake < 20 ether) return 0;
+        // Determine how much to stake. Can't stake less than 20 NXM.
+        toStake = balance.sub(reserveAmount.add(totalPending));
+        _approveNxm(_getTokenController(), toStake);
 
-            for (uint256 i = 0; i < _protocols.length; i++) {
-                address protocol = _protocols[i];
-                uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
+        for (uint256 i = 0; i < _protocols.length; i++) {
+            address protocol = _protocols[i];
+            uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
 
-                for (uint256 j = 0; j < protocols.length; j++) {
-                    if (protocol == protocols[j]){
-                        stakeAmount += _stakeAmounts[j];
-                        break;
-                    }
+            for (uint256 j = 0; j < protocols.length; j++) {
+                if (protocol == protocols[j]){
+                    stakeAmount += _stakeAmounts[j];
+                    break;
                 }
-                if (stakeAmount == 0) {
-                    continue;
-                }
-
-                amounts.push(stakeAmount);
-                activeProtocols.push(protocol);
+            }
+            if (stakeAmount == 0) {
+                continue;
             }
 
-            pool.depositAndStake(toStake, activeProtocols, amounts);
-            delete amounts;
-            delete activeProtocols;
+            amounts.push(stakeAmount);
+            activeProtocols.push(protocol);
         }
+
+        pool.depositAndStake(toStake, activeProtocols, amounts);
+        delete amounts;
+        delete activeProtocols;
     }
 
     /**
@@ -636,42 +632,66 @@ contract arNXMVault is Ownable {
       internal
     returns (uint256 toStake)
     {
-        _approveNxm(_getTokenController());
         uint256 balance = nxm.balanceOf( address(this) );
 
         // If we do need to restake funds...
+        // toStake == additional stake on top of old ones
         if (reserveAmount.add(totalPending) < balance) {
-            IPooledStaking pool = IPooledStaking( _getPool() );
-            
-            // Determine how much to stake. Can't stake less than 20 NXM.
+            toStake = 0;
+        } else {
             toStake = balance.sub(reserveAmount.add(totalPending));
-            if (toStake < 20 ether) return 0;
-           
-            // get current data from pooled staking 
-            address[] memory currentProtocols = pool.stakerContractsArray(address(this));
-            address[] memory currentStakes = new address[](currentProtocols.length);
-            uint256 totalDeposit = pool.stakerDeposit(address(this)) + toStake;
-            // this can be up to 10x stake
-            uint256 currentTotalStake = 0;
-            for (uint256 i = 0; i < currentProtocols.length; i++) {
-                currentStakes[i] = pool.stakerContractStake(address(this), currentProtocols[i]);
-                currentTotalStake += currentStakes[i];
-                activeProtocols.push(currentProtocols[i]);
-                amounts.push(currentStakes[i]);
-            }
-
-
-            // now calculate the new staking protocols
-            pool.depositAndStake(toStake, activeProtocols, amounts);
+            _approveNxm(_getTokenController(), toStake);
         }
+
+        IPooledStaking pool = IPooledStaking( _getPool() );
+
+        // get current data from pooled staking 
+        address[] memory currentProtocols = pool.stakerContractsArray(address(this));
+        uint256[] memory currentStakes = new uint256[](currentProtocols.length);
+        uint256 maxStake = pool.stakerDeposit(address(this)) + toStake;
+        // this can be up to 10x stake
+        uint256 currentTotalStake = 0;
+        for (uint256 i = 0; i < currentProtocols.length; i++) {
+            currentStakes[i] = pool.stakerContractStake(address(this), currentProtocols[i]);
+            currentTotalStake += currentStakes[i];
+            activeProtocols.push(currentProtocols[i]);
+            amounts.push(currentStakes[i]);
+        }
+
+        // maxStake <= deposit - totalStake / MAX_EXPOSURE
+        uint256 exposure = pool.MAX_EXPOSURE();
+        maxStake = maxStake - currentTotalStake / exposure;
+
+        // push additional stake data
+        for(uint256 i = 0; i < bucketSize; i++) {
+            uint256 index = (startProtocol + i) % protocols.length;
+            address protocol = protocols[index];
+            uint256 curIndex = addressArrayFind(currentProtocols, protocol);
+            if(curIndex == type(uint256).max) {
+                activeProtocols.push(protocol);
+                amounts.push(maxStake);
+            } else {
+                amounts[curIndex] = (exposure * maxStake + currentStakes[curIndex] ) / (exposure + 1);
+                if(amounts[curIndex] < currentStakes[curIndex]) {
+                    amounts[curIndex] = currentStakes[curIndex];
+                }
+            }
+        }
+
+        // now calculate the new staking protocols
+        pool.depositAndStake(toStake, activeProtocols, amounts);
+        delete activeProtocols;
+        delete amounts;
     }
 
-    function addressArrayPush(address[] memory old, address elem) internal pure returns(address[] memory) {
-        uint256 count = old.length;
-        bytes memory encoded = abi.encodePacked(uint256(32), count, old, elem);
-        return abi.decode(encoded, (address[]));
+    function addressArrayFind(address[] memory arr, address elem) internal pure returns(uint256 index) {
+        for(uint256 i = 0; i<arr.length; i++) {
+            if(arr[i] == elem) {
+                return i;
+            }
+        }
+        return type(uint256).max;
     }
-
 
     /**
      * @dev Calculate what the current reward is. We stream this to arNxm value to avoid dumps.
@@ -757,10 +777,10 @@ contract arNXMVault is Ownable {
     /**
      * @dev Approve wNxm contract to be able to transferFrom Nxm from this contract.
     **/
-    function _approveNxm(address _to)
+    function _approveNxm(address _to, uint256 _amount)
       internal
     {
-        nxm.approve( _to, uint256(-1) );
+        nxm.approve( _to, _amount );
     }
     
     /**

@@ -1,3 +1,6 @@
+import { ethers } from "hardhat";
+import { providers, Contract, Signer, BigNumber } from "ethers";
+
 export function hexSized(str: string, length: number) : string {
   const raw = Buffer.from(str).toString('hex');
   const pad = "0".repeat(length*2 - raw.length);
@@ -9,3 +12,12 @@ export function hex(str: string) : string {
 export function sleep(ms: number) {
   new Promise(resolve => setTimeout(resolve, ms));
 }
+export async function increase(seconds: number) {
+  const signers = await ethers.getSigners();
+  const signer = signers[0];
+  await (signer.provider as providers.JsonRpcProvider).send(
+    "evm_increaseTime",
+    [seconds]
+  );
+}
+
