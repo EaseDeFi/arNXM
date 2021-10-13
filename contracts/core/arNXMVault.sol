@@ -646,23 +646,32 @@ contract arNXMVault is Ownable {
             // Determine how much to stake. Can't stake less than 20 NXM.
             toStake = balance.sub(reserveAmount.add(totalPending));
             if (toStake < 20 ether) return 0;
-                        
-            uint256 startPos = startProtocol;
-            for (uint256 i = 0; i < protocols.length; i++) {
-                address protocol = protocols[i];
-
-                uint256 stake = pool.stakerContractStake(address(this), protocol);
-                uint256 stakeAmount = i >= startPos && i < startPos + bucketSize ? toStake.add(stake) : stake;
-
-                amounts.push(stakeAmount);
-                activeProtocols.push(protocol);
+           
+            // get current data from pooled staking 
+            address[] memory currentProtocols = pool.stakerContractsArray(address(this));
+            address[] memory currentStakes = new address[](currentProtocols.length);
+            uint256 totalDeposit = pool.stakerDeposit(address(this)) + toStake;
+            // this can be up to 10x stake
+            uint256 currentTotalStake = 0;
+            for (uint256 i = 0; i < currentProtocols.length; i++) {
+                currentStakes[i] = pool.stakerContractStake(address(this), currentProtocols[i]);
+                currentTotalStake += currentStakes[i];
+                activeProtocols.push(currentProtocols[i]);
+                amounts.push(currentStakes[i]);
             }
 
+
+            // now calculate the new staking protocols
             pool.depositAndStake(toStake, activeProtocols, amounts);
-            delete amounts;
-            delete activeProtocols;
         }
     }
+
+    function addressArrayPush(address[] memory old, address elem) internal pure returns(address[] memory) {
+        uint256 count = old.length;
+        bytes memory encoded = abi.encodePacked(uint256(32), count, old, elem);
+        return abi.decode(encoded, (address[]));
+    }
+
 
     /**
      * @dev Calculate what the current reward is. We stream this to arNxm value to avoid dumps.

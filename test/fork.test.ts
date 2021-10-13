@@ -120,15 +120,26 @@ describe.only('arnxm', function(){
     //  console.log(toBe.protocols[i]);
     //}
     //const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
+    //
+    console.log("CURRENT STATUS");
+    for(let i = 0; i<toBe.protocols.length; i++) {
+      console.log("Protocol : " + toBe.protocols[i]);
+      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+    }
     await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, [], 0);
   });
 
   it("should manual stake", async function(){
     const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
-    console.log(res);
-    console.log(await nxm.balanceOf(arNXMVault.address));
     const lastId = await pool.lastUnstakeRequestId();
     await arNXMVault.connect(owner).restake(lastId);
-    console.log(await nxm.balanceOf(arNXMVault.address));
+    console.log("CURRENT STATUS : after restake");
+    for(let i = 0; i<toBe.protocols.length; i++) {
+      console.log("Protocol : " + toBe.protocols[i]);
+      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
+      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
+      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
+    }
   });
 });
