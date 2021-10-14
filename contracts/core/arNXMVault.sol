@@ -591,36 +591,40 @@ contract arNXMVault is Ownable {
       internal
     returns (uint256 toStake)
     {
-        uint256 balance = nxm.balanceOf( address(this) );
-
-        // If we do need to restake funds...
         IPooledStaking pool = IPooledStaking( _getPool() );
-
-        // Determine how much to stake. Can't stake less than 20 NXM.
-        toStake = balance.sub(reserveAmount.add(totalPending));
-        _approveNxm(_getTokenController(), toStake);
-
-        for (uint256 i = 0; i < _protocols.length; i++) {
-            address protocol = _protocols[i];
-            uint256 stakeAmount = pool.stakerContractStake(address(this), protocol);
-
-            for (uint256 j = 0; j < protocols.length; j++) {
-                if (protocol == protocols[j]){
-                    stakeAmount += _stakeAmounts[j];
-                    break;
-                }
-            }
-            if (stakeAmount == 0) {
-                continue;
-            }
-
-            amounts.push(stakeAmount);
-            activeProtocols.push(protocol);
+        uint256 balance = nxm.balanceOf( address(this) );
+        // If we do need to restake funds...
+        // toStake == additional stake on top of old ones
+        if (reserveAmount.add(totalPending) > balance) {
+            toStake = 0;
+        } else {
+            toStake = balance.sub(reserveAmount.add(totalPending));
+            _approveNxm(_getTokenController(), toStake);
         }
 
+        // get current data from pooled staking 
+        address[] memory currentProtocols = pool.stakerContractsArray(address(this));
+        // this will be used to calculate the remaining exposure
+        for (uint256 i = 0; i < currentProtocols.length; i++) {
+            amounts.push(pool.stakerContractStake(address(this), currentProtocols[i]));
+            activeProtocols.push(currentProtocols[i]);
+        }
+
+        // push additional stake data
+        for(uint256 i = 0; i < _protocols.length; i++) {
+            address protocol = _protocols[i];
+            uint256 curIndex = addressArrayFind(currentProtocols, protocol);
+            if(curIndex == type(uint256).max) {
+                activeProtocols.push(protocol);
+                amounts.push(_stakeAmounts[i]);
+            } else {
+                amounts[curIndex] += _stakeAmounts[i];
+            }
+        }
+        // now calculate the new staking protocols
         pool.depositAndStake(toStake, activeProtocols, amounts);
-        delete amounts;
         delete activeProtocols;
+        delete amounts;
     }
 
     /**
@@ -633,7 +637,7 @@ contract arNXMVault is Ownable {
     {
         IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 balance = nxm.balanceOf( address(this) );
-        uint256 deposit = pool.stakerDeposit(address(this));
+        uint256 deposited = pool.stakerDeposit(address(this));
         // If we do need to restake funds...
         // toStake == additional stake on top of old ones
         if (reserveAmount.add(totalPending) > balance) {
@@ -648,9 +652,10 @@ contract arNXMVault is Ownable {
         uint256[] memory currentStakes = new uint256[](currentProtocols.length);
         // this will be used to calculate the remaining exposure
         uint256 exposure = pool.MAX_EXPOSURE();
-        uint256 remainingStake = (deposit + toStake) * exposure;
+        uint256 remainingStake = (deposited + toStake) * exposure;
         for (uint256 i = 0; i < currentProtocols.length; i++) {
             currentStakes[i] = pool.stakerContractStake(address(this), currentProtocols[i]);
+            require(remainingStake >= currentStakes[i], "exposure exceeds limit, try changeProtocol to fully unstake");
             remainingStake -= currentStakes[i];
             activeProtocols.push(currentProtocols[i]);
             amounts.push(currentStakes[i]);
@@ -669,8 +674,8 @@ contract arNXMVault is Ownable {
                 amounts[curIndex] = currentStakes[curIndex] + remainingStake / bucketSize;
                 if(amounts[curIndex] < currentStakes[curIndex]) {
                     amounts[curIndex] = currentStakes[curIndex];
-                } else if(amounts[curIndex] > deposit + toStake) {
-                    amounts[curIndex] = deposit + toStake;
+                } else if(amounts[curIndex] > deposited + toStake) {
+                    amounts[curIndex] = deposited + toStake;
                 }
             }
         }
