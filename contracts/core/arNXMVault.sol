@@ -7,6 +7,7 @@ import '../interfaces/IERC20.sol';
 import '../interfaces/INexusMutual.sol';
 import '../interfaces/IRewardManager.sol';
 import '../interfaces/IShieldMining.sol';
+import 'hardhat/console.sol';
 /**
  * @title arNXM Vault
  * @dev Vault to stake wNXM or NXM in Nexus Mutual while maintaining your liquidity.
@@ -533,6 +534,7 @@ contract arNXMVault is Ownable {
 
         for(uint256 i = 0; i < bucketSize; i++) {
             uint256 index = (startProtocol + i) % protocols.length;
+            if(index < checkpointProtocol) index = index + checkpointProtocol;
             uint256 unstakePercent = unstakePercents[index];
             address unstakeProtocol = protocols[index];
             uint256 stake = pool.stakerContractStake(address(this), unstakeProtocol);
@@ -631,15 +633,23 @@ contract arNXMVault is Ownable {
     returns (uint256 toStake)
     {
         uint256 balance = nxm.balanceOf( address(this) );
+        console.log("BALANCE");
+        console.logUint(balance / 1 ether);
+        console.log("RESERVE");
+        console.logUint(reserveAmount / 1 ether);
+        console.log("PENDING");
+        console.logUint(totalPending / 1 ether);
 
         // If we do need to restake funds...
         // toStake == additional stake on top of old ones
-        if (reserveAmount.add(totalPending) < balance) {
+        if (reserveAmount.add(totalPending) > balance) {
             toStake = 0;
         } else {
             toStake = balance.sub(reserveAmount.add(totalPending));
             _approveNxm(_getTokenController(), toStake);
         }
+        console.log("TOSTAKE");
+        console.logUint(toStake / 1 ether);
 
         IPooledStaking pool = IPooledStaking( _getPool() );
 
@@ -663,19 +673,19 @@ contract arNXMVault is Ownable {
         // push additional stake data
         for(uint256 i = 0; i < bucketSize; i++) {
             uint256 index = (startProtocol + i) % protocols.length;
+            if(index < checkpointProtocol) index = index + checkpointProtocol;
             address protocol = protocols[index];
             uint256 curIndex = addressArrayFind(currentProtocols, protocol);
             if(curIndex == type(uint256).max && maxStake >= 20 ether) {
                 activeProtocols.push(protocol);
                 amounts.push(maxStake);
-            } else {
+            } else if(curIndex != type(uint256).max) {
                 amounts[curIndex] = (exposure * maxStake + currentStakes[curIndex] ) / (exposure + 1);
                 if(amounts[curIndex] < currentStakes[curIndex]) {
                     amounts[curIndex] = currentStakes[curIndex];
                 }
             }
         }
-
         // now calculate the new staking protocols
         pool.depositAndStake(toStake, activeProtocols, amounts);
         delete activeProtocols;

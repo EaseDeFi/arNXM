@@ -17,6 +17,7 @@ interface INxmMaster {
 }
 
 interface IPooledStaking {
+    function unstakeRequests(uint256 id) external view returns(uint256 amount, uint256 unstakeAt, address contractAddress, address stakerAddress, uint256 next);
     function processPendingActions(uint256 iterations) external returns(bool success);
     function MAX_EXPOSURE() external view returns(uint256);
     function lastUnstakeRequestId() external view returns(uint256);

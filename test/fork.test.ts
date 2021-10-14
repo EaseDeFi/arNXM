@@ -1,5 +1,5 @@
 import { network, ethers } from "hardhat";
-import { providers, Contract, Signer, BigNumber } from "ethers";
+import { providers, Contract, Signer, BigNumber, utils } from "ethers";
 import { expect } from "chai";
 import { increase } from './utils';
 const pool_mainnet = "0x84edffa16bb0b9ab1163abb0a13ff0744c11272f";
@@ -11,11 +11,46 @@ const nxm_mainnet = "0xd7c49cee7e9188cca6ad8ff264c1da2e69d4cf3b";
 BigNumber.prototype.toJSON = function toJSON(key) {
     return this.toString();
 };
+
+let arNXMVault : Contract;
+let pool : Contract;
+let nxm : Contract;
+let owner : Signer;
+
+async function restake(protocols: string[]) {
+  await increase(7 * 86400 + 1);
+  await pool.processPendingActions(100);
+  await printStatus(protocols);
+  let lastId = await pool.lastUnstakeRequestId();
+  const request = await pool.unstakeRequests(lastId);
+  if(request.unstakeAt.toNumber() == 0) {
+    lastId = 0;
+  }
+  await arNXMVault.connect(owner).restake(lastId);
+  await printStatus(protocols);
+}
+async function printStatus(protocols : string[]) {
+  const protocolData = {
+    balance : utils.formatEther(await nxm.balanceOf(arNXMVault.address)),
+    deposit : utils.formatEther(await pool.stakerDeposit(arNXMVault.address)),
+    withdrawable : utils.formatEther(await pool.stakerMaxWithdrawable(arNXMVault.address)),
+    totalPending : utils.formatEther(await arNXMVault.totalPending()),
+    reserve : utils.formatEther(await arNXMVault.reserveAmount()),
+  }
+  console.table(protocolData);
+  let list = [];
+  for(let i = 0; i<protocols.length; i++) {
+    const data = {
+      protocol : protocols[i],
+      stake : utils.formatEther(await pool.stakerContractStake(arNXMVault.address, protocols[i])),
+      unstake : utils.formatEther(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i])),
+      net : utils.formatEther((await pool.stakerContractStake(arNXMVault.address, protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i]))),
+    }
+    list.push(data);
+  }
+  console.table(list);
+}
 describe.only('arnxm', function(){
-  let arNXMVault : Contract;
-  let pool : Contract;
-  let nxm : Contract;
-  let owner : Signer;
   let others : Signer;
   let whale : Signer;
 
@@ -78,9 +113,6 @@ describe.only('arnxm', function(){
 
     let lastId = await pool.lastUnstakeRequestId();
     const oldProtocols = await pool.stakerContractsArray(arnxm_mainnet);
-    console.log("OLD");
-    console.log(oldProtocols);
-    console.log("OLD END");
     //first fill in the old protocols
     for(let i = 0; i < oldProtocols.length; i++) {
       const idx = desired.protocols.findIndex((e) => e.toLowerCase() === oldProtocols[i].toLowerCase());
@@ -117,27 +149,22 @@ describe.only('arnxm', function(){
       }
     }
 
+    await printStatus(toBe.protocols);
+
     //for(let i = 0; i< toBe.protocols.length; i++){
     //  console.log(toBe.protocols[i]);
     //}
     //const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
-    //
-    //console.log("CURRENT STATUS");
-    //for(let i = 0; i<toBe.protocols.length; i++) {
-    //  console.log("Protocol : " + toBe.protocols[i]);
-    //  console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-    //  console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-    //}
-    console.log("CHANGE PROTOCOL");
     lastId = await pool.lastUnstakeRequestId();
     await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, toBe.protocols, lastId);
-    console.log("CHANGE PROTOCOL DONE");
   });
 
   it("should manual stake", async function(){
     const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
     let lastId = await pool.lastUnstakeRequestId();
+    await printStatus(toBe.protocols);
     await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(toBe.protocols);
     await increase(30 * 86400 + 1);
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
@@ -149,46 +176,27 @@ describe.only('arnxm', function(){
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
-    console.log("Withdrawable : ");
-    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
-    for(let i = 0; i<toBe.protocols.length; i++) {
-      console.log("Protocol : " + toBe.protocols[i]);
-      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
-    }
-    await arNXMVault.connect(owner).restake(0);
-    await increase(30 * 86400 + 1);
-    await pool.processPendingActions(100);
-    console.log("Withdrawable : ");
-    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
-    for(let i = 0; i<toBe.protocols.length; i++) {
-      console.log("Protocol : " + toBe.protocols[i]);
-      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
-    }
-    lastId = await pool.lastUnstakeRequestId();
-    await arNXMVault.connect(owner).restake(0);
-    await increase(30 * 86400 + 1);
-    await pool.processPendingActions(100000);
-    console.log("Withdrawable : ");
-    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
-    for(let i = 0; i<toBe.protocols.length; i++) {
-      console.log("Protocol : " + toBe.protocols[i]);
-      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
-    }
-    lastId = await pool.lastUnstakeRequestId();
-    await arNXMVault.connect(owner).restake(0);
-    console.log("Withdrawable : ");
-    console.log(await pool.stakerMaxWithdrawable(arNXMVault.address));
-    for(let i = 0; i<toBe.protocols.length; i++) {
-      console.log("Protocol : " + toBe.protocols[i]);
-      console.log("Stake : " + await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i]));
-      console.log("Unstake : " + await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i]));
-      console.log("Net stake : " + (await pool.stakerContractStake(arNXMVault.address, toBe.protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, toBe.protocols[i])));
-    }
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
+    await restake(toBe.protocols);
   });
 });
