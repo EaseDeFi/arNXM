@@ -18,7 +18,7 @@ let nxm : Contract;
 let owner : Signer;
 
 async function restake(protocols: string[]) {
-  await increase(7 * 86400 + 1);
+  await increase(30 * 86400 + 1);
   await pool.processPendingActions(100);
   await printStatus(protocols);
   let lastId = await pool.lastUnstakeRequestId();
@@ -30,15 +30,8 @@ async function restake(protocols: string[]) {
   await printStatus(protocols);
 }
 async function printStatus(protocols : string[]) {
-  const protocolData = {
-    balance : utils.formatEther(await nxm.balanceOf(arNXMVault.address)),
-    deposit : utils.formatEther(await pool.stakerDeposit(arNXMVault.address)),
-    withdrawable : utils.formatEther(await pool.stakerMaxWithdrawable(arNXMVault.address)),
-    totalPending : utils.formatEther(await arNXMVault.totalPending()),
-    reserve : utils.formatEther(await arNXMVault.reserveAmount()),
-  }
-  console.table(protocolData);
   let list = [];
+  let stakeSum = BigNumber.from(0);
   for(let i = 0; i<protocols.length; i++) {
     const data = {
       protocol : protocols[i],
@@ -46,8 +39,18 @@ async function printStatus(protocols : string[]) {
       unstake : utils.formatEther(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i])),
       net : utils.formatEther((await pool.stakerContractStake(arNXMVault.address, protocols[i])).sub(await pool.stakerContractPendingUnstakeTotal(arNXMVault.address, protocols[i]))),
     }
+    stakeSum = stakeSum.add(await pool.stakerContractStake(arNXMVault.address, protocols[i]));
     list.push(data);
   }
+  const protocolData = {
+    balance : utils.formatEther(await nxm.balanceOf(arNXMVault.address)),
+    deposit : utils.formatEther(await pool.stakerDeposit(arNXMVault.address)),
+    withdrawable : utils.formatEther(await pool.stakerMaxWithdrawable(arNXMVault.address)),
+    totalPending : utils.formatEther(await arNXMVault.totalPending()),
+    reserve : utils.formatEther(await arNXMVault.reserveAmount()),
+    exposure : utils.formatEther(stakeSum.div(20))
+  }
+  console.table(protocolData);
   console.table(list);
 }
 describe.only('arnxm', function(){

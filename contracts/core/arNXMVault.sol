@@ -279,13 +279,12 @@ contract arNXMVault is Ownable {
     {   
         // All Nexus functions.
         uint256 withdrawn = _withdrawNxm();
-        // This will stake for all protocols, including unstaking protocols
-        uint256 staked = _stakeNxm();
         // This will unstake from all unstaking protocols
         uint256 unstaked = _unstakeNxm(_lastId);
+        // This will stake for all protocols, including unstaking protocols
+        uint256 staked = _stakeNxm();
 
-        startProtocol = startProtocol + bucketSize >= protocols.length ? 0 : startProtocol + bucketSize;
-        if (startProtocol < checkpointProtocol) startProtocol = checkpointProtocol;
+        startProtocol = startProtocol + bucketSize >= protocols.length ? checkpointProtocol + (startProtocol + bucketSize) % protocols.length : startProtocol + bucketSize;
         lastRestake = block.timestamp;
 
         emit Restake(withdrawn, unstaked, staked, aum(), block.timestamp);
@@ -632,14 +631,9 @@ contract arNXMVault is Ownable {
       internal
     returns (uint256 toStake)
     {
+        IPooledStaking pool = IPooledStaking( _getPool() );
         uint256 balance = nxm.balanceOf( address(this) );
-        console.log("BALANCE");
-        console.logUint(balance / 1 ether);
-        console.log("RESERVE");
-        console.logUint(reserveAmount / 1 ether);
-        console.log("PENDING");
-        console.logUint(totalPending / 1 ether);
-
+        uint256 deposit = pool.stakerDeposit(address(this));
         // If we do need to restake funds...
         // toStake == additional stake on top of old ones
         if (reserveAmount.add(totalPending) > balance) {
@@ -648,27 +642,19 @@ contract arNXMVault is Ownable {
             toStake = balance.sub(reserveAmount.add(totalPending));
             _approveNxm(_getTokenController(), toStake);
         }
-        console.log("TOSTAKE");
-        console.logUint(toStake / 1 ether);
-
-        IPooledStaking pool = IPooledStaking( _getPool() );
 
         // get current data from pooled staking 
         address[] memory currentProtocols = pool.stakerContractsArray(address(this));
         uint256[] memory currentStakes = new uint256[](currentProtocols.length);
-        uint256 maxStake = pool.stakerDeposit(address(this)) + toStake;
-        // this can be up to 10x stake
-        uint256 currentTotalStake = 0;
+        // this will be used to calculate the remaining exposure
+        uint256 exposure = pool.MAX_EXPOSURE();
+        uint256 remainingStake = (deposit + toStake) * exposure;
         for (uint256 i = 0; i < currentProtocols.length; i++) {
             currentStakes[i] = pool.stakerContractStake(address(this), currentProtocols[i]);
-            currentTotalStake += currentStakes[i];
+            remainingStake -= currentStakes[i];
             activeProtocols.push(currentProtocols[i]);
             amounts.push(currentStakes[i]);
         }
-
-        // maxStake <= deposit - totalStake / MAX_EXPOSURE
-        uint256 exposure = pool.MAX_EXPOSURE();
-        maxStake = maxStake - currentTotalStake / exposure;
 
         // push additional stake data
         for(uint256 i = 0; i < bucketSize; i++) {
@@ -676,13 +662,15 @@ contract arNXMVault is Ownable {
             if(index < checkpointProtocol) index = index + checkpointProtocol;
             address protocol = protocols[index];
             uint256 curIndex = addressArrayFind(currentProtocols, protocol);
-            if(curIndex == type(uint256).max && maxStake >= 20 ether) {
+            if(curIndex == type(uint256).max && remainingStake/bucketSize >= 20 ether) {
                 activeProtocols.push(protocol);
-                amounts.push(maxStake);
+                amounts.push(remainingStake/exposure);
             } else if(curIndex != type(uint256).max) {
-                amounts[curIndex] = (exposure * maxStake + currentStakes[curIndex] ) / (exposure + 1);
+                amounts[curIndex] = currentStakes[curIndex] + remainingStake / bucketSize;
                 if(amounts[curIndex] < currentStakes[curIndex]) {
                     amounts[curIndex] = currentStakes[curIndex];
+                } else if(amounts[curIndex] > deposit + toStake) {
+                    amounts[curIndex] = deposit + toStake;
                 }
             }
         }
