@@ -18,7 +18,7 @@ let nxm : Contract;
 let owner : Signer;
 
 async function restake(protocols: string[]) {
-  await increase(30 * 86400 + 1);
+  await increase(7 * 86400 + 1);
   await pool.processPendingActions(100);
   await printStatus(protocols);
   let lastId = await pool.lastUnstakeRequestId();
@@ -159,16 +159,17 @@ describe.only('arnxm', function(){
     //}
     //const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
     lastId = await pool.lastUnstakeRequestId();
-    await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, toBe.protocols, lastId);
+    //await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, toBe.protocols, 0);
+    //const res = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, toBe.protocols, lastId]);
   });
 
   it("should manual stake", async function(){
-    const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
+    //const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
     let lastId = await pool.lastUnstakeRequestId();
     await printStatus(toBe.protocols);
-    await arNXMVault.connect(owner).restake(lastId);
+    const tx = await arNXMVault.connect(owner).restake(lastId);
     await printStatus(toBe.protocols);
-    await increase(30 * 86400 + 1);
+    await increase(7 * 86400 + 1);
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
