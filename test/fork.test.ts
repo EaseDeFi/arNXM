@@ -1,7 +1,7 @@
 import { network, ethers } from "hardhat";
 import { providers, Contract, Signer, BigNumber, utils } from "ethers";
 import { expect } from "chai";
-import { increase } from './utils';
+import { increase, getTimestamp } from './utils';
 const pool_mainnet = "0x84edffa16bb0b9ab1163abb0a13ff0744c11272f";
 const arnxm_mainnet = "0x1337DEF1FC06783D4b03CB8C1Bf3EBf7D0593FC4";
 const gov_mainnet = "0x1f28ed9d4792a567dad779235c2b766ab84d8e33";
@@ -18,8 +18,14 @@ let nxm : Contract;
 let owner : Signer;
 
 async function restake(protocols: string[]) {
-  await increase(7 * 86400 + 1);
+  await increase(86400 + 1);
   await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  console.log((await getTimestamp()).toString());
   await printStatus(protocols);
   let lastId = await pool.lastUnstakeRequestId();
   const request = await pool.unstakeRequests(lastId);
@@ -93,26 +99,6 @@ describe.only('arnxm', function(){
     const ProxyFactory = await ethers.getContractFactory("OwnedUpgradeabilityProxy");
     const toUpdate = await ProxyFactory.attach(arNXMVault.address);
     await toUpdate.connect(owner).upgradeTo(newVault.address);
-    /////
-
-    for(let i = 0; i< toStake.protocols.length; i++) {
-      const idx = desired.protocols.findIndex((e) => e.toLowerCase() === toStake.protocols[i].toLowerCase());
-      if(idx === -1) {
-        desired.protocols.unshift(toStake.protocols[i]);
-        desired.amounts.unshift(toStake.amounts[i]);
-      } else {
-        if(desired.amounts.length <= idx) {
-          desired.protocols.splice(idx, 1);
-          desired.protocols.unshift(toStake.protocols[i]);
-          desired.amounts.unshift(toStake.amounts[i]);
-        } else {
-          desired.protocols.splice(idx, 1);
-          desired.amounts.splice(idx, 1);
-          desired.protocols.unshift(toStake.protocols[i]);
-          desired.amounts.unshift(toStake.amounts[i]);
-        }
-      }
-    }
 
     let lastId = await pool.lastUnstakeRequestId();
     const oldProtocols = await pool.stakerContractsArray(arnxm_mainnet);
@@ -154,22 +140,53 @@ describe.only('arnxm', function(){
 
     await printStatus(toBe.protocols);
 
-    //for(let i = 0; i< toBe.protocols.length; i++){
-    //  console.log(toBe.protocols[i]);
-    //}
-    //const data = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, unstake.removedProtocols, lastId]);
     lastId = await pool.lastUnstakeRequestId();
-    //await arNXMVault.connect(owner).changeProtocols(toBe.protocols, toBe.unstakePercents, toBe.protocols, 0);
-    //const res = arNXMVault.interface.encodeFunctionData("changeProtocols", [toBe.protocols, toBe.unstakePercents, toBe.protocols, lastId]);
   });
 
-  it("should manual stake", async function(){
+  it.only('vote', async function(){
+  });
+
+  it.skip("should manual stake", async function(){
     //const res = arNXMVault.interface.encodeFunctionData("stakeNxmManual", [toBe.protocols, toBe.amounts]);
     let lastId = await pool.lastUnstakeRequestId();
-    await printStatus(toBe.protocols);
     const tx = await arNXMVault.connect(owner).restake(lastId);
     await printStatus(toBe.protocols);
-    await increase(7 * 86400 + 1);
+    await increase(86400 + 1);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
+    await pool.processPendingActions(100);
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
