@@ -795,6 +795,20 @@ contract arNXMVault is Ownable {
         INXMPool pool = INXMPool(nxmMaster.getLatestAddress("P1"));
         pool.buyNXM{value:address(this).balance}(_minNxm);
     }
+
+    /**
+     * @dev Vote on Nexus Mutual governance proposals using tokens.
+     * @param _proposalId ID of the proposal to vote on.
+     * @param _solutionChosen Side of the proposal we're voting for (0 for no, 1 for yes).
+    **/
+    function submitVote(uint256 _proposalId, uint256 _solutionChosen)
+      external
+      onlyOwner
+    {
+        address gov = nxmMaster.getLatestAddress("GV");
+        IGovernance(gov).submitVote(_proposalId, _solutionChosen);
+    }
+
     
     /**
      * @dev rescue tokens locked in contract

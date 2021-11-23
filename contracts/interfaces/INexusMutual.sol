@@ -43,3 +43,10 @@ interface IClaimsData {
 interface INXMPool {
     function buyNXM(uint minTokensOut) external payable;
 }
+
+interface IGovernance {
+    function proposalDetails(uint _proposalId) external view returns (uint, uint, uint) ;
+    function voteTallyData(uint _proposalId, uint _solution) external view returns (uint member, uint advisory, uint);
+    function getSolutionAction(uint _proposalId, uint _solution) external view returns (uint, bytes memory);
+    function submitVote(uint256 _proposalId, uint256 _solution) external;
+}

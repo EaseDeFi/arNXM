@@ -18,14 +18,14 @@ let nxm : Contract;
 let owner : Signer;
 
 async function restake(protocols: string[]) {
-  await increase(86400 + 1);
-  await pool.processPendingActions(100);
-  await pool.processPendingActions(100);
-  await pool.processPendingActions(100);
-  await pool.processPendingActions(100);
-  await pool.processPendingActions(100);
-  await pool.processPendingActions(100);
-  console.log((await getTimestamp()).toString());
+//  await increase(86400 + 1);
+//  await pool.processPendingActions(100);
+//  await pool.processPendingActions(100);
+//  await pool.processPendingActions(100);
+//  await pool.processPendingActions(100);
+//  await pool.processPendingActions(100);
+//  await pool.processPendingActions(100);
+//  console.log((await getTimestamp()).toString());
   await printStatus(protocols);
   let lastId = await pool.lastUnstakeRequestId();
   const request = await pool.unstakeRequests(lastId);
@@ -137,13 +137,113 @@ describe.only('arnxm', function(){
         }
       }
     }
-
-    await printStatus(toBe.protocols);
-
     lastId = await pool.lastUnstakeRequestId();
   });
 
-  it.only('vote', async function(){
+  it.only('changeProtocol - stakeManual', async function() {
+    //unstake:
+    //33% on convex (50%?)
+    //33% on anchor (50%?)
+    //75% on yield app
+    //75% on liquity
+    //75%+ on reflexer
+    //75%+ on crypto.com
+    //75%+ on stakedao
+    //75%+ on alpha homora
+    //stake:
+    //200k on curve
+    //100k on sushi
+    //100k aave
+    //75k on abra
+    //75k on rari?
+    //75k on ice
+    let unstaking = {
+      address : [
+        "0xf403c135812408bfbe8713b5a23a04b3d48aae31",
+        "0xc57d000000000000000000000000000000000013",
+        "0xc57d000000000000000000000000000000000012",
+        "0xa39739ef8b0231dbfa0dcda07d7e29faabcf4bb2",
+        "0xcc88a9d330da1133df3a7bd823b95e52511a6962",
+        "0x0000000000000000000000000000000000000001",
+        "0xb17640796e4c27a39af51887aff3f8dc0daf9567",
+        "0x99c666810ba4bf9a4c2318ce60cb2c279ee2cf56",
+      ],
+      percents : [
+        "330",
+        "750",
+        "750",
+        "750",
+        "750",
+        "330",
+        "750",
+        "750",
+
+      ]
+    }
+    const staking = {
+      address : [
+        "0x79a8c46dea5ada233abaffd40f3a0a2b1e5a4f27",
+        "0xc2edad668740f1aa35e4d8f227fb8e17dca888cd",
+        "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9",
+        "0xd96f48665a1410C0cd669A88898ecA36B9Fc2cce",
+        "0x835482FE0532f169024d5E9410199369aAD5C77E",
+        "0xaE7b92C8B14E7bdB523408aE0A6fFbf3f589adD9",
+      ],
+      amounts : [
+        "200000000000000000000000",
+        "100000000000000000000000",
+        "100000000000000000000000",
+        "75000000000000000000000",
+        "75000000000000000000000",
+        "75000000000000000000000",
+      ]
+    }
+    for(let i = 0; i<staking.address.length; i++){
+      unstaking.address.push(staking.address[i]);
+      unstaking.percents.push("700");
+    }
+    for(let i = 0; i<48; i++){
+      const protocol = await arNXMVault.protocols(i);
+      const idx = unstaking.address.findIndex((e) => e.toLowerCase() === protocol.toLowerCase());
+      if(idx === -1) {
+        unstaking.address.push(protocol);
+        unstaking.percents.push("700");
+      } else {
+        console.log(protocol);
+      }
+    }
+    await printStatus(unstaking.address);
+    let lastId = await pool.lastUnstakeRequestId();
+    await arNXMVault.connect(owner).changeProtocols(unstaking.address, unstaking.percents, [], lastId);
+    await arNXMVault.connect(owner).changeCheckpointAndStart(0,0);
+    await arNXMVault.connect(owner).stakeNxmManual(staking.address, staking.amounts);
+    await arNXMVault.connect(owner).restake(lastId);
+    await arNXMVault.connect(owner).changeCheckpointAndStart(0,14);
+    await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(unstaking.address);
+    await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(unstaking.address);
+    await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(unstaking.address);
+    await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(unstaking.address);
+    await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(unstaking.address);
+    await arNXMVault.connect(owner).restake(lastId);
+    await printStatus(unstaking.address);
+  });
+
+  it.skip('vote', async function(){
+    const gv = await ethers.getContractAt("contracts/interfaces/INexusMutual.sol:IGovernance", "0x4A5C681dDC32acC6ccA51ac17e9d461e6be87900");
+    let data = {
+      memberVote: ethers.utils.formatEther((await gv.voteTallyData(160,1)).member),
+    };
+    console.table(data);
+    await arNXMVault.connect(owner).submitVote(160, 1);
+    data = {
+      memberVote: ethers.utils.formatEther((await gv.voteTallyData(160,1)).member),
+    };
+    console.table(data);
   });
 
   it.skip("should manual stake", async function(){
@@ -151,73 +251,73 @@ describe.only('arnxm', function(){
     let lastId = await pool.lastUnstakeRequestId();
     const tx = await arNXMVault.connect(owner).restake(lastId);
     await printStatus(toBe.protocols);
-    await increase(86400 + 1);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await pool.processPendingActions(100);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
-    await restake(toBe.protocols);
+    //await increase(86400 + 1);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await pool.processPendingActions(100);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
+    //await restake(toBe.protocols);
   });
 });
