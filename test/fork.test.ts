@@ -18,14 +18,14 @@ let nxm : Contract;
 let owner : Signer;
 
 async function restake(protocols: string[]) {
-//  await increase(86400 + 1);
-//  await pool.processPendingActions(100);
-//  await pool.processPendingActions(100);
-//  await pool.processPendingActions(100);
-//  await pool.processPendingActions(100);
-//  await pool.processPendingActions(100);
-//  await pool.processPendingActions(100);
-//  console.log((await getTimestamp()).toString());
+  await increase(86400 + 1);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  await pool.processPendingActions(100);
+  console.log((await getTimestamp()).toString());
   await printStatus(protocols);
   let lastId = await pool.lastUnstakeRequestId();
   const request = await pool.unstakeRequests(lastId);
@@ -208,29 +208,48 @@ describe.only('arnxm', function(){
       if(idx === -1) {
         unstaking.address.push(protocol);
         unstaking.percents.push("700");
+        staking.address.push(protocol);
+        staking.amounts.push("75000000000000000000000");
       } else {
         console.log(protocol);
       }
     }
     await printStatus(unstaking.address);
     let lastId = await pool.lastUnstakeRequestId();
+    const ci  = arNXMVault.interface;
+    console.log(ci.encodeFunctionData("changeProtocols", [unstaking.address, unstaking.percents, [], lastId]));
     await arNXMVault.connect(owner).changeProtocols(unstaking.address, unstaking.percents, [], lastId);
+    console.log(ci.encodeFunctionData("changeCheckpointAndStart", [0,0]));
     await arNXMVault.connect(owner).changeCheckpointAndStart(0,0);
+    console.log(ci.encodeFunctionData("stakeNxmManual", [staking.address,staking.amounts]));
     await arNXMVault.connect(owner).stakeNxmManual(staking.address, staking.amounts);
-    await arNXMVault.connect(owner).restake(lastId);
-    await arNXMVault.connect(owner).changeCheckpointAndStart(0,14);
-    await arNXMVault.connect(owner).restake(lastId);
-    await printStatus(unstaking.address);
+    console.log(ci.encodeFunctionData("restake", [lastId]));
     await arNXMVault.connect(owner).restake(lastId);
     await printStatus(unstaking.address);
-    await arNXMVault.connect(owner).restake(lastId);
-    await printStatus(unstaking.address);
-    await arNXMVault.connect(owner).restake(lastId);
-    await printStatus(unstaking.address);
-    await arNXMVault.connect(owner).restake(lastId);
-    await printStatus(unstaking.address);
-    await arNXMVault.connect(owner).restake(lastId);
-    await printStatus(unstaking.address);
+
+    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
+//    await restake(unstaking.address);
   });
 
   it.skip('vote', async function(){
