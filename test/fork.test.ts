@@ -207,9 +207,7 @@ describe.only('arnxm', function(){
       const idx = unstaking.address.findIndex((e) => e.toLowerCase() === protocol.toLowerCase());
       if(idx === -1) {
         unstaking.address.push(protocol);
-        unstaking.percents.push("700");
-        staking.address.push(protocol);
-        staking.amounts.push("75000000000000000000000");
+        unstaking.percents.push("0");
       } else {
         console.log(protocol);
       }
