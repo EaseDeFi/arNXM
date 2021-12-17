@@ -42,3 +42,8 @@ interface INXMPool {
 interface IGovernance {
     function submitVote(uint256 _proposalId, uint256 _solution) external;
 }
+
+interface IQuotation {
+    function getWithdrawableCoverNoteCoverIds(address owner) external view returns(uint256[] memory, bytes32[] memory);
+}
+

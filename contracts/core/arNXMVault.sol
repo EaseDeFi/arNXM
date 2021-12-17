@@ -674,6 +674,18 @@ contract arNXMVault is Ownable {
     /*---- Ownable functions ----*/
 
     /**
+     * @dev pull nxm from arNFT and wrap it to wnxm
+    **/
+    function pullNXM(address _from, uint256 _amount, address _to)
+      external
+      onlyOwner
+    {
+        nxm.transferFrom(_from, address(this), _amount);
+        _wrapNxm(_amount);
+        wNxm.transfer(_to, _amount);
+    }
+
+    /**
      * @dev Buy NXM direct from Nexus Mutual. Used by ExchangeManager.
      * @param _minNxm Minimum amount of NXM tokens to receive in return for the Ether.
     **/
@@ -724,7 +736,6 @@ contract arNXMVault is Ownable {
     {
         reserveAmount = _reserveAmount;
     }
-
 
     /**
      * @dev Owner may change the percent of insurance fees referrers receive.
