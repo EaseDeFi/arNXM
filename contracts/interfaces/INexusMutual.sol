@@ -25,6 +25,7 @@ interface IPooledStaking {
     function depositAndStake(uint256 deposit, address[] calldata protocols, uint256[] calldata amounts) external;
     function stakerContractStake(address staker, address protocol) external view returns (uint256);
     function stakerContractPendingUnstakeTotal(address staker, address protocol) external view returns(uint256);
+    function stakerContractsArray(address staker) external view returns (address[] memory);
     function withdraw(uint256 amount) external;
     function stakerReward(address staker) external view returns (uint256);
 }
@@ -36,4 +37,8 @@ interface IClaimsData {
 
 interface INXMPool {
     function buyNXM(uint minTokensOut) external payable;
+}
+
+interface IGovernance {
+    function submitVote(uint256 _proposalId, uint256 _solution) external;
 }
