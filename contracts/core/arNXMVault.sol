@@ -449,6 +449,7 @@ contract arNXMVault is Ownable {
     **/
     function withdrawNxm()
       external
+      onlyOwner
     {
         _withdrawNxm();
     }

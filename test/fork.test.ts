@@ -198,9 +198,10 @@ describe.only('arnxm', function(){
     await pool.processPendingActions(100);
     await pool.processPendingActions(100);
     await printStatus([]);
-    await arNXMVault.connect(owner).stakeNxm(staking.address, staking.amounts);
+    //await arNXMVault.connect(owner).stakeNxm(staking.address, staking.amounts);
     await increase(86400 * 2 + 1);
     await pool.processPendingActions(100);
+    await arNXMVault.connect(owner).withdrawNxm();
     await printStatus([]);
 
     //await retake(unstaking.address);
