@@ -23,14 +23,14 @@ contract arNXMVault is Ownable {
     uint256 constant private DENOMINATOR = 1000;
 
     // Amount of time between
-    uint256 public ____deprecated____0;
+    uint256 private ____deprecated____0;
 
     // Amount of time that rewards are distributed over.
     uint256 public rewardDuration;
 
     // This used to be unstake percent but has now been deprecated in favor of individual unstakes.
     // Paranoia results in this not being replaced but rather deprecated and new variables placed at the bottom.
-    uint256 public ____deprecated____1;
+    uint256 private ____deprecated____1;
 
     // Amount of wNXM (in token Wei) to reserve each period.
     // Overwrites reservePercent in update.
@@ -826,17 +826,17 @@ contract arNXMVault is Ownable {
     //// Second update additions. ////
 
     // Protocol that the next restaking will begin on.
-    uint256 public ____deprecated____2;
+    uint256 private ____deprecated____2;
 
     // Checkpoint in case we want to cut off certain buckets (where we begin the rotations).
     // To bar protocols from being staked/unstaked, move them to before checkpointProtocol.
-    uint256 public ____deprecated____3;
+    uint256 private ____deprecated____3;
 
     // Number of protocols to stake each time.
-    uint256 public ____deprecated____4;
+    uint256 private ____deprecated____4;
 
     // Individual percent to unstake.
-    uint256[] public ____deprecated____5;
+    uint256[] private ____deprecated____5;
 
     // Last time an EOA has called this contract.
     mapping (address => uint256) public lastCall;
